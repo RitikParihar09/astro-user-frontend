@@ -72,9 +72,12 @@ function Call() {
       try {
         const response = await fetch("https://kalpjoytish-backend.onrender.com/api/astro/all?online=true");
         const resData = await response.json();
+        console.log("Fetch Online Astrologers API Response:", resData);
         
-        if (response.ok && resData.success && resData.data && resData.data.length > 0) {
-          const formatted = resData.data.map(astro => ({
+        const list = resData.data || resData.astrologers || resData.online || (Array.isArray(resData) ? resData : []);
+        
+        if (response.ok && list && list.length > 0) {
+          const formatted = list.map(astro => ({
             id: astro._id || astro.id,
             name: astro.name || "Astrologer",
             skills: (astro.specialization && astro.specialization.join(", ")) || "Kundli, Vastu, Marriage",
