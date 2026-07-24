@@ -116,53 +116,64 @@ export default function ChatSession() {
 
     // Listen for incoming messages
     socket.on("receive_message", (msg) => {
+      if (!msg) return;
       // Hide waiting screen instantly if any message is received
       setSessionStatus("ACTIVE");
       
       setMessages((prev) => {
-        const msgId = msg._id || msg.id;
-        // Avoid duplicate by ID
-        if (prev.some((m) => m.id === msgId)) return prev;
+        try {
+          if (!Array.isArray(prev)) return [];
+          const msgId = msg._id || msg.id;
+          if (!msgId) return prev;
 
-        // Check if there is a matching temporary message from the user
-        const isUserMsg = msg.senderType?.toLowerCase() === "user";
-        if (isUserMsg) {
-          const tempMsgIndex = prev.findIndex(
-            (m) =>
-              m.sender === "user" &&
-              (m.text || "").trim() === (msg.text || msg.message || msg.content || "").trim() &&
-              String(m.id).startsWith("temp_")
-          );
-          if (tempMsgIndex !== -1) {
-            // Replace the temporary message with the real one
-            const updated = [...prev];
-            updated[tempMsgIndex] = {
+          // Avoid duplicate by ID
+          if (prev.some((m) => m && m.id === msgId)) return prev;
+
+          // Check if there is a matching temporary message from the user
+          const isUserMsg = msg.senderType?.toLowerCase() === "user";
+          if (isUserMsg) {
+            const msgText = (msg.text || msg.message || msg.content || "").toString().trim();
+            const tempMsgIndex = prev.findIndex(
+              (m) =>
+                m &&
+                m.sender === "user" &&
+                (m.text || "").toString().trim() === msgText &&
+                String(m.id || "").startsWith("temp_")
+            );
+            if (tempMsgIndex !== -1) {
+              // Replace the temporary message with the real one
+              const updated = [...prev];
+              updated[tempMsgIndex] = {
+                id: msgId,
+                sender: "user",
+                text: msg.text || msg.message || msg.content || "",
+                image: msg.mediaUrl,
+                time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              };
+              return updated;
+            }
+          }
+
+          return [
+            ...prev,
+            {
               id: msgId,
-              sender: "user",
-              text: msg.text || msg.message || msg.content,
+              sender: isUserMsg ? "user" : "astrologer",
+              text: msg.text || msg.message || msg.content || "",
               image: msg.mediaUrl,
               time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
                 hour: "2-digit",
                 minute: "2-digit",
               }),
-            };
-            return updated;
-          }
+            },
+          ];
+        } catch (e) {
+          console.error("Error parsing receive_message socket callback:", e);
+          return prev;
         }
-
-        return [
-          ...prev,
-          {
-            id: msgId || Date.now(),
-            sender: isUserMsg ? "user" : "astrologer",
-            text: msg.text || msg.message || msg.content,
-            image: msg.mediaUrl,
-            time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          },
-        ];
       });
     });
 
