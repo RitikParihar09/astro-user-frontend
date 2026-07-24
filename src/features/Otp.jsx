@@ -98,7 +98,7 @@ function Otp() {
 
     setLoading(true);
 
-    const USE_MOCK_OTP = false; // Set to false when backend API is live
+    const USE_MOCK_OTP = import.meta.env.VITE_USE_MOCK_OTP === "true" || localStorage.getItem("use_mock_otp") === "true";
 
     try {
       const phoneNum = localStorage.getItem("phone");
@@ -272,6 +272,18 @@ function Otp() {
     }
 
     setLoading(true);
+
+    const USE_MOCK_OTP = import.meta.env.VITE_USE_MOCK_OTP === "true" || localStorage.getItem("use_mock_otp") === "true";
+
+    if (USE_MOCK_OTP) {
+      setTimeout(() => {
+        setTimer(30);
+        alert("Mock Mode: OTP Resent Successfully! (Use 123456 to login)");
+        setLoading(false);
+      }, 800);
+      return;
+    }
+
     try {
       const response = await fetch("https://kalpjoytish-backend.onrender.com/api/auth/send-otp", {
         method: "POST",
@@ -289,7 +301,11 @@ function Otp() {
         setTimer(30);
         alert(data.message || "OTP Resent Successfully!");
       } else {
-        alert(data.message || `Failed to resend OTP: ${response.statusText}`);
+        if (response.status === 429) {
+          alert("Too many requests. Please try again later, or enable Mock OTP mode.");
+        } else {
+          alert(data.message || `Failed to resend OTP: ${response.statusText}`);
+        }
       }
     } catch (error) {
       console.error("Resend OTP Error:", error);

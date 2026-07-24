@@ -42,7 +42,7 @@ function Login() {
 
     setLoading(true);
 
-    const USE_MOCK_OTP = false; // Set to false when backend API is live
+    const USE_MOCK_OTP = import.meta.env.VITE_USE_MOCK_OTP === "true" || localStorage.getItem("use_mock_otp") === "true";
 
     if (USE_MOCK_OTP) {
       // Bypassing real network call for send-otp since it returns 404 right now
@@ -73,7 +73,11 @@ function Login() {
         localStorage.setItem("phone", formattedPhone);
         navigate("/otp", { state: { from: location.state?.from } });
       } else {
-        alert(data.message || `Failed to send OTP: ${response.statusText}`);
+        if (response.status === 429) {
+          alert("Too many requests. Please try again later, or enable Mock OTP mode (set VITE_USE_MOCK_OTP=true in environment or run localStorage.setItem('use_mock_otp', 'true') in browser console).");
+        } else {
+          alert(data.message || `Failed to send OTP: ${response.statusText}`);
+        }
       }
     } catch (error) {
       console.error("OTP Send Error:", error);

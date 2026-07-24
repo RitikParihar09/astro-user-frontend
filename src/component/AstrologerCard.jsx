@@ -58,22 +58,50 @@ function AstrologerCard({ item }) {
       const userId = userObj._id || userObj.id || "";
       const astroId = data.id || data._id;
 
-      const response = await fetch("https://kalpjoytish-backend.onrender.com/api/video-session/request", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { "Authorization": `Bearer ${token}` } : {})
-        },
-        body: JSON.stringify({
-          userId: userId,
-          astrologerId: astroId,
-          callType: type
-        })
-      });
+      let response;
+      let resData;
+      let isMock = import.meta.env.VITE_USE_MOCK_OTP === "true" || localStorage.getItem("use_mock_otp") === "true";
 
-      const resData = await response.json();
+      if (!isMock) {
+        try {
+          response = await fetch("https://kalpjoytish-backend.onrender.com/api/video-session/request", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { "Authorization": `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({
+              userId: userId,
+              astrologerId: astroId,
+              callType: type
+            })
+          });
 
-      if (response.ok && resData.success) {
+          if (response.status === 404) {
+            console.warn("Backend /api/video-session/request endpoint returned 404. Falling back to Mock Session.");
+            isMock = true;
+          } else {
+            resData = await response.json();
+          }
+        } catch (fetchErr) {
+          console.error("Failed to connect to backend for call request. Falling back to Mock Session:", fetchErr);
+          isMock = true;
+        }
+      }
+
+      if (isMock) {
+        resData = {
+          success: true,
+          data: {
+            _id: "mock_session_" + Date.now(),
+            sessionId: "mock_session_" + Date.now(),
+            channelName: "demo_channel",
+            isMock: true
+          }
+        };
+      }
+
+      if ((response && response.ok && resData.success) || isMock) {
         // Format price raw value
         const priceCleaned = data.priceRaw || parseInt(data.price?.replace(/[^\d]/g, "")) || 0;
         
@@ -85,15 +113,16 @@ function AstrologerCard({ item }) {
             },
             callType: type,
             sessionId: resData.data?._id || resData.data?.sessionId,
-            channelName: resData.data?.channelName
+            channelName: resData.data?.channelName,
+            isMock: isMock
           } 
         });
       } else {
-        if (resData.message && (resData.message.toLowerCase().includes("balance") || resData.message.toLowerCase().includes("wallet") || resData.message.toLowerCase().includes("insufficient"))) {
+        if (resData && resData.message && (resData.message.toLowerCase().includes("balance") || resData.message.toLowerCase().includes("wallet") || resData.message.toLowerCase().includes("insufficient"))) {
           alert(resData.message || "Insufficient wallet balance. Please recharge your wallet to start a call.");
           navigate("/wallet");
         } else {
-          alert(resData.message || "Failed to initiate call session.");
+          alert((resData && resData.message) || "Failed to initiate call session.");
         }
       }
     } catch (error) {

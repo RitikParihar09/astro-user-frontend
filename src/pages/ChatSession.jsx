@@ -89,23 +89,29 @@ export default function ChatSession() {
     // Connect to Socket server
     const token = localStorage.getItem("authToken");
     socketRef.current = io("https://kalpjoytish-backend.onrender.com", {
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
       auth: {
         token: token
       }
     });
 
     const socket = socketRef.current;
+    const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+    const userId = userObj._id || userObj.id || "";
 
     // Join room immediately if already connected, and also on reconnect
     if (socket.connected) {
       console.log("Connected on mount, joining room directly.");
+      if (userId) socket.emit("register_user", { userId });
       socket.emit("join_session", { sessionId });
+      socket.emit("join_session", sessionId);
     }
 
     socket.on("connect", () => {
       console.log("Connected to Chat Socket:", socket.id);
+      if (userId) socket.emit("register_user", { userId });
       socket.emit("join_session", { sessionId });
+      socket.emit("join_session", sessionId);
     });
 
     // Listen for incoming messages
@@ -119,8 +125,8 @@ export default function ChatSession() {
           ...prev,
           {
             id: msg._id || msg.id || Date.now(),
-            sender: msg.senderType === "USER" ? "user" : "astrologer",
-            text: msg.text,
+            sender: msg.senderType?.toLowerCase() === "user" ? "user" : "astrologer",
+            text: msg.text || msg.message || msg.content,
             image: msg.mediaUrl,
             time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
               hour: "2-digit",
@@ -184,8 +190,8 @@ export default function ChatSession() {
         if (response.ok && resData.success) {
           const historyMessages = resData.data.map((msg) => ({
             id: msg._id,
-            sender: msg.senderType === "USER" ? "user" : "astrologer",
-            text: msg.text,
+            sender: msg.senderType?.toLowerCase() === "user" ? "user" : "astrologer",
+            text: msg.text || msg.message || msg.content,
             image: msg.mediaUrl,
             time: new Date(msg.createdAt).toLocaleTimeString([], {
               hour: "2-digit",
@@ -256,8 +262,10 @@ export default function ChatSession() {
     if (socketRef.current) {
       socketRef.current.emit("send_message", {
         sessionId: sessionId,
+        chatId: sessionId,
+        roomId: sessionId,
         senderId: userId,
-        senderType: "USER",
+        senderType: "user",
         text: `🎂 My Date of Birth is ${formattedDob}`,
         messageType: "text"
       });
@@ -271,8 +279,10 @@ export default function ChatSession() {
     if (socketRef.current) {
       socketRef.current.emit("send_message", {
         sessionId: sessionId,
+        chatId: sessionId,
+        roomId: sessionId,
         senderId: userId,
-        senderType: "USER",
+        senderType: "user",
         text: inputMessage,
         messageType: "text"
       });
@@ -330,8 +340,10 @@ export default function ChatSession() {
         if (socketRef.current) {
           socketRef.current.emit("send_message", {
             sessionId: sessionId,
+            chatId: sessionId,
+            roomId: sessionId,
             senderId: userId,
-            senderType: "USER",
+            senderType: "user",
             text: "",
             mediaUrl: imageUrl,
             messageType: "image"

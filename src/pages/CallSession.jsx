@@ -106,9 +106,21 @@ export default function CallSession() {
       return;
     }
 
+    let mockAcceptTimeout;
+    const isMockMode = sessionId.startsWith("mock_") || location.state?.isMock;
+
+    if (isMockMode) {
+      console.log("Mock Call Session initialized locally.");
+      mockAcceptTimeout = setTimeout(() => {
+        console.log("Simulating mock call acceptance...");
+        setSessionStatus("ACTIVE");
+        setChannelName("mock_channel");
+      }, 2500);
+    }
+
     const token = localStorage.getItem("authToken");
     socketRef.current = io("https://kalpjoytish-backend.onrender.com", {
-      transports: ["websocket", "polling"],
+      transports: ["polling", "websocket"],
       auth: { token }
     });
 
@@ -225,11 +237,19 @@ export default function CallSession() {
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
+      if (mockAcceptTimeout) {
+        clearTimeout(mockAcceptTimeout);
+      }
     };
   }, [sessionId, isLoggedIn]);
 
   // Agora SDK Integration logic
   const initAgora = async (appId, channelName, rtcToken, mode) => {
+    if (sessionId?.startsWith("mock_") || location.state?.isMock) {
+      console.log("Mock Call Mode: Bypassing Agora setup.");
+      setSessionStatus("ACTIVE");
+      return;
+    }
     try {
       await cleanupCall();
 
@@ -323,6 +343,19 @@ export default function CallSession() {
 
   // Terminate call manually
   const handleEndCall = async () => {
+    if (sessionId?.startsWith("mock_") || location.state?.isMock) {
+      cleanupCall();
+      setSessionStatus("COMPLETED");
+      setSummaryData({
+        totalDurationMinutes: Math.max(1, Math.ceil(elapsedSeconds / 60)),
+        totalAmountDeducted: Math.max(1, Math.ceil(elapsedSeconds / 60)) * ratePerMinute
+      });
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      return;
+    }
+
     try {
       // Emit socket event to end call session
       socketRef.current?.emit("end_call_session", { sessionId });
