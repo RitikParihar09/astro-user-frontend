@@ -118,14 +118,43 @@ export default function ChatSession() {
     socket.on("receive_message", (msg) => {
       // Hide waiting screen instantly if any message is received
       setSessionStatus("ACTIVE");
-      // Avoid duplicate messages
+      
       setMessages((prev) => {
-        if (prev.some((m) => m.id === msg._id || m.id === msg.id)) return prev;
+        const msgId = msg._id || msg.id;
+        // Avoid duplicate by ID
+        if (prev.some((m) => m.id === msgId)) return prev;
+
+        // Check if there is a matching temporary message from the user
+        const isUserMsg = msg.senderType?.toLowerCase() === "user";
+        if (isUserMsg) {
+          const tempMsgIndex = prev.findIndex(
+            (m) =>
+              m.sender === "user" &&
+              (m.text || "").trim() === (msg.text || msg.message || msg.content || "").trim() &&
+              String(m.id).startsWith("temp_")
+          );
+          if (tempMsgIndex !== -1) {
+            // Replace the temporary message with the real one
+            const updated = [...prev];
+            updated[tempMsgIndex] = {
+              id: msgId,
+              sender: "user",
+              text: msg.text || msg.message || msg.content,
+              image: msg.mediaUrl,
+              time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            };
+            return updated;
+          }
+        }
+
         return [
           ...prev,
           {
-            id: msg._id || msg.id || Date.now(),
-            sender: msg.senderType?.toLowerCase() === "user" ? "user" : "astrologer",
+            id: msgId || Date.now(),
+            sender: isUserMsg ? "user" : "astrologer",
             text: msg.text || msg.message || msg.content,
             image: msg.mediaUrl,
             time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
@@ -293,7 +322,7 @@ export default function ChatSession() {
         hour: "2-digit",
         minute: "2-digit",
       });
-      const tempId = Date.now();
+      const tempId = "temp_" + Date.now();
       
       setMessages((prev) => [
         ...prev,
