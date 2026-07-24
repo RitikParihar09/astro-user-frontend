@@ -117,6 +117,13 @@ export default function ChatSession() {
     // Listen for incoming messages
     socket.on("receive_message", (msg) => {
       if (!msg) return;
+      
+      const msgSessionId = msg.sessionId || msg.chatId || msg.roomId || "";
+      if (sessionId && msgSessionId && String(msgSessionId) !== String(sessionId)) {
+        console.log(`🗑️ Discarding message meant for session ${msgSessionId} (Current session is ${sessionId})`);
+        return;
+      }
+
       // Hide waiting screen instantly if any message is received
       setSessionStatus("ACTIVE");
       
