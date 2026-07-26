@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import {
   FiClock,
   FiBell,
@@ -13,7 +14,36 @@ import { useAuth } from "../context/AuthContext";
 
 function Profile() {
   const navigate = useNavigate();
-  const { logoutUser, userName } = useAuth();
+  const { logoutUser, userName, updateUserName } = useAuth();
+  const [uniqueId, setUniqueId] = useState("");
+
+  useEffect(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem("user") || "{}");
+      if (cached.uniqueId) setUniqueId(cached.uniqueId);
+    } catch (e) {}
+
+    const token = localStorage.getItem("authToken");
+    if (token) {
+      fetch("https://kalpjoytish-backend.onrender.com/api/user/profile", {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            const u = data.data;
+            localStorage.setItem("user", JSON.stringify(u));
+            if (u.uniqueId) setUniqueId(u.uniqueId);
+            if (u.name) {
+              updateUserName(u.name);
+            }
+          }
+        })
+        .catch((err) => console.error("Profile refresh error:", err));
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center">
@@ -43,18 +73,11 @@ function Profile() {
               {userName || "Astro User"}
             </h1>
 
-            {(() => {
-              try {
-                const userObj = JSON.parse(localStorage.getItem("user") || "{}");
-                return userObj.uniqueId ? (
-                  <p className="text-white/90 text-xs font-bold bg-black/15 py-1 px-3.5 rounded-full inline-block mt-1 tracking-wider">
-                    ID: {userObj.uniqueId}
-                  </p>
-                ) : null;
-              } catch {
-                return null;
-              }
-            })()}
+            {uniqueId && (
+              <p className="text-white/95 text-[11px] font-extrabold bg-black/15 py-1 px-3.5 rounded-full inline-block mt-1 tracking-wider border border-white/10 uppercase">
+                ID: {uniqueId}
+              </p>
+            )}
 
             <p className="text-white/80 text-sm mt-1">
               {userName ? `${userName.toLowerCase().replace(/\s+/g, "")}@gmail.com` : "user@gmail.com"}
