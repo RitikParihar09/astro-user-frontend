@@ -30,6 +30,7 @@ export default function CallSession() {
   const [isCameraOff, setIsCameraOff] = useState(false);
   const [peerAudioMuted, setPeerAudioMuted] = useState(false);
   const [peerVideoMuted, setPeerVideoMuted] = useState(false);
+  const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
   
   // Rating and review state
   const [rating, setRating] = useState(5);
@@ -283,6 +284,7 @@ export default function CallSession() {
         console.log("Subscribed to astrologer track:", user.uid, mediaType);
         
         if (mediaType === "video") {
+          setHasRemoteVideo(true);
           if (remoteVideoRef.current) {
             user.videoTrack.play(remoteVideoRef.current);
           }
@@ -292,8 +294,15 @@ export default function CallSession() {
         }
       });
 
+      client.on("user-unpublished", (user, mediaType) => {
+        if (mediaType === "video") {
+          setHasRemoteVideo(false);
+        }
+      });
+
       client.on("user-left", (user) => {
         console.log("Astrologer left the channel:", user.uid);
+        setHasRemoteVideo(false);
         handleEndCall();
       });
 
@@ -567,26 +576,18 @@ export default function CallSession() {
                 ref={remoteVideoRef} 
                 className="w-full h-full object-cover flex items-center justify-center relative"
               >
-                {/* Fallback image if remote stream is not loaded or peer camera is off */}
-                {peerVideoMuted ? (
+                {(!hasRemoteVideo || peerVideoMuted) ? (
                   <div className="absolute inset-0 flex flex-col justify-center items-center bg-[#1F2937] z-10">
                     <img
                       src={astrologer?.image}
                       alt={astrologer?.name}
                       className="w-24 h-24 rounded-full border border-orange-500/40 opacity-70 blur-[1px]"
                     />
-                    <p className="text-xs text-gray-400 mt-3">Astrologer's camera is off</p>
+                    <p className="text-xs text-gray-400 mt-3">
+                      {peerVideoMuted ? "Astrologer's camera is off" : "Connecting video stream..."}
+                    </p>
                   </div>
-                ) : (
-                  <div className="absolute inset-0 flex flex-col justify-center items-center bg-[#1F2937]">
-                    <img
-                      src={astrologer?.image}
-                      alt={astrologer?.name}
-                      className="w-24 h-24 rounded-full border border-orange-500/40 opacity-70 blur-[1px]"
-                    />
-                    <p className="text-xs text-gray-400 mt-3">Connecting video stream...</p>
-                  </div>
-                )}
+                ) : null}
               </div>
 
               {/* Local Video Thumbnail Container (Floating picture-in-picture) */}
