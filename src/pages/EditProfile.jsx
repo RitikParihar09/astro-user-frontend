@@ -76,12 +76,9 @@ export default function EditProfile() {
   // Check if we are in onboarding mode
   const isOnboarding = location.search.includes("mode=onboarding");
 
-  // Onboarding Step State
-  const [step, setStep] = useState(1);
+  // Onboarding Step State (Removed steps logic, collecting everything on single page)
   const [formData, setFormData] = useState({
-    firstName: (userName && userName !== "Ravi Sharma") ? (userName.split(" ")[0] || "") : "",
-    middleName: "",
-    lastName: (userName && userName !== "Ravi Sharma") ? (userName.split(" ")[1] || "") : "",
+    name: (userName && userName !== "Ravi Sharma") ? userName : "",
     gender: "",
     dob: "",
     tob: "",
@@ -101,132 +98,105 @@ export default function EditProfile() {
   };
 
   const handleBack = () => {
-    if (step > 1) {
-      setStep((prev) => prev - 1);
-    } else {
-      navigate(-1);
-    }
+    navigate(-1);
   };
 
   const handleContinue = async () => {
-    if (step === 1) {
-      if (!formData.firstName.trim()) {
-        alert("Please enter first name");
-        return;
-      }
-      if (!formData.lastName.trim()) {
-        alert("Please enter last name");
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      if (!formData.gender || formData.gender === "Select Gender") {
-        alert("Please select gender");
-        return;
-      }
-      setStep(3);
-    } else if (step === 3) {
-      if (!formData.dob) {
-        alert("Please enter date of birth");
-        return;
-      }
-      setStep(4);
-    } else if (step === 4) {
-      if (!formData.tob) {
-        alert("Please enter time of birth");
-        return;
-      }
-      setStep(5);
-    } else if (step === 5) {
-      if (!formData.birthPlace.trim()) {
-        alert("Please enter your place of birth");
-        return;
-      }
-      setStep(6);
-    } else if (step === 6) {
-      if (!formData.city.trim()) {
-        alert("Please enter city");
-        return;
-      }
-      setStep(7);
-    } else if (step === 7) {
-      if (!formData.state.trim()) {
-        alert("Please enter state");
-        return;
-      }
-      setStep(8);
-    } else if (step === 8) {
-      if (!formData.country.trim()) {
-        alert("Please enter country");
-        return;
-      }
-      
-      setIsUpdating(true);
-      try {
-        const token = localStorage.getItem("authToken");
-        const phoneVal = localStorage.getItem("phone");
+    if (!formData.name.trim()) {
+      alert("Please enter full name");
+      return;
+    }
+    if (!formData.gender || formData.gender === "Select Gender") {
+      alert("Please select gender");
+      return;
+    }
+    if (!formData.dob) {
+      alert("Please enter date of birth");
+      return;
+    }
+    if (!formData.tob) {
+      alert("Please enter time of birth");
+      return;
+    }
+    if (!formData.birthPlace.trim()) {
+      alert("Please enter your place of birth");
+      return;
+    }
+    if (!formData.city.trim()) {
+      alert("Please enter city");
+      return;
+    }
+    if (!formData.state.trim()) {
+      alert("Please enter state");
+      return;
+    }
+    if (!formData.country.trim()) {
+      alert("Please enter country");
+      return;
+    }
+    
+    setIsUpdating(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      const phoneVal = localStorage.getItem("phone");
 
-        // Since the user has already verified OTP or logged in, a user document 
-        // already exists in the backend DB. We update it via PUT /api/user/profile.
-        const response = await fetch("https://kalpjoytish-backend.onrender.com/api/user/profile", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { "Authorization": `Bearer ${token}` } : {})
-          },
-          body: (() => {
-            let formattedDob = "";
-            if (formData.dob) {
-              const parts = formData.dob.split(" / ");
-              if (parts.length === 3) {
-                formattedDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
-              } else {
-                formattedDob = formData.dob;
-              }
+      // Since the user has already verified OTP or logged in, a user document 
+      // already exists in the backend DB. We update it via PUT /api/user/profile.
+      const response = await fetch("https://kalpjoytish-backend.onrender.com/api/user/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: (() => {
+          let formattedDob = "";
+          if (formData.dob) {
+            const parts = formData.dob.split(" / ");
+            if (parts.length === 3) {
+              formattedDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            } else {
+              formattedDob = formData.dob;
             }
-            const cleanPhone = phoneVal ? phoneVal.replace(/\D/g, "") : Math.random().toString(36).substring(7);
-            const userEmail = `${cleanPhone}@kalpjoytish.com`;
-
-            return JSON.stringify({
-              firstname: formData.firstName,
-              middlename: formData.middleName,
-              lastname: formData.lastName,
-              gender: formData.gender,
-              dateofbirth: formattedDob,
-              timeofbirth: formData.tob,
-              placeofbirth: formData.birthPlace,
-              city: formData.city,
-              state: formData.state,
-              country: formData.country,
-              address: formData.address,
-              email: userEmail
-            });
-          })()
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-          const fullName = `${formData.firstName} ${formData.lastName}`.trim();
-          updateUserName(fullName);
-          localStorage.setItem("dob", formData.dob || "");
-          
-          if (data.data) {
-            const updatedUser = data.data.user || data.data;
-            localStorage.setItem("user", JSON.stringify(updatedUser));
           }
-          
-          alert("Profile completed successfully!");
-          navigate(location.state?.from || "/home");
-        } else {
-          alert(data.message || `Failed to save profile: ${response.statusText}`);
+          const cleanPhone = phoneVal ? phoneVal.replace(/\D/g, "") : Math.random().toString(36).substring(7);
+          const userEmail = `${cleanPhone}@kalpjoytish.com`;
+
+          return JSON.stringify({
+            name: formData.name,
+            gender: formData.gender,
+            dateofbirth: formattedDob,
+            timeofbirth: formData.tob,
+            placeofbirth: formData.birthPlace,
+            city: formData.city,
+            state: formData.state,
+            country: formData.country,
+            address: formData.address,
+            email: userEmail
+          });
+        })()
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        updateUserName(formData.name);
+        localStorage.setItem("dob", formData.dob || "");
+        
+        if (data.data) {
+          const updatedUser = data.data.user || data.data;
+          localStorage.setItem("user", JSON.stringify(updatedUser));
         }
-      } catch (err) {
-        console.error("Profile Save Error:", err);
-        alert(`Profile completion failed: ${err.message}`);
-      } finally {
-        setIsUpdating(false);
+        
+        alert("Profile completed successfully!");
+        navigate(location.state?.from || "/home");
+      } else {
+        alert(data.message || `Failed to save profile: ${response.statusText}`);
       }
+    } catch (err) {
+      console.error("Profile Save Error:", err);
+      alert(`Profile completion failed: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -296,12 +266,9 @@ export default function EditProfile() {
     handleChange("tob", `${hour}:${paddedM} ${ampm}`);
   };
 
-  // Step progress percentage calculations
-  const progress = Math.round((step / 8) * 100);
-
   if (isOnboarding) {
     // -------------------------------------------------------------
-    // ONBOARDING VIEW (9-Step Flow)
+    // ONBOARDING VIEW (Single-Page Form Layout)
     // -------------------------------------------------------------
     return (
       <div className="min-h-screen bg-gray-100 flex justify-center">
@@ -321,345 +288,211 @@ export default function EditProfile() {
           </div>
 
           {/* Form Card (Overlap) */}
-          <div className="bg-white rounded-t-[40px] px-6 pb-28 -mt-8 flex-1 relative flex flex-col">
+          <div className="bg-white rounded-t-[40px] px-6 pb-12 -mt-8 flex-1 relative flex flex-col">
             {/* Protruding Emblem */}
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-white rounded-full border-[6px] border-white shadow-lg flex items-center justify-center z-10">
-            <img
-              src={logo}
-              alt="Logo"
-              className="w-18 h-18 object-contain"
-            />
-          </div>
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-white rounded-full border-[6px] border-white shadow-lg flex items-center justify-center z-10">
+              <img
+                src={logo}
+                alt="Logo"
+                className="w-18 h-18 object-contain"
+              />
+            </div>
 
             {/* Heading */}
-            <div className="text-center mt-16">
+            <div className="text-center mt-16 mb-8">
               <h1 className="text-2xl font-bold text-[#421d18] tracking-tight">
                 Complete Your Profile
               </h1>
               <p className="text-gray-500 text-[13px] mt-2 px-6 leading-relaxed">
                 We just need a few details to personalize your experience
               </p>
-              {/* Step Indicators 1-9 */}
-              <StepIndicator activeStep={step} />
             </div>
 
-            {/* Step Inputs */}
-            <div className="mt-8 flex-1 flex flex-col justify-center">
+            {/* Single Page Form Fields */}
+            <div className="space-y-5 flex-1">
               
-              {step === 1 && (
-                <div className="space-y-6 animate-fade-in w-full">
-                  <h2 className="text-xl font-bold text-[#421d18] text-center mb-4">What's your full name?</h2>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">First Name *</label>
-                    <div className="relative flex items-center">
-                      <User size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.firstName}
-                        onChange={(e) => handleChange("firstName", e.target.value)}
-                        placeholder="Enter first name"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Middle Name (Optional)</label>
-                    <div className="relative flex items-center">
-                      <User size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.middleName}
-                        onChange={(e) => handleChange("middleName", e.target.value)}
-                        placeholder="Enter middle name"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Last Name *</label>
-                    <div className="relative flex items-center">
-                      <User size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.lastName}
-                        onChange={(e) => handleChange("lastName", e.target.value)}
-                        placeholder="Enter last name"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Full Name *</label>
+                <div className="relative flex items-center">
+                  <User size={20} className="text-[#ff7448] absolute left-4" />
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => handleChange("name", e.target.value)}
+                    placeholder="Enter your full name"
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
+                  />
                 </div>
-              )}
-
-              {step === 2 && (
-                <div className="space-y-6 animate-fade-in w-full">
-                  <h2 className="text-xl font-bold text-[#421d18] text-center mb-4">Select your gender</h2>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Gender *</label>
-                    <div className="relative flex items-center">
-                      <User size={20} className="text-[#ff7448] absolute left-4 pointer-events-none z-10" />
-                      <select
-                        value={formData.gender}
-                        onChange={(e) => handleChange("gender", e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm appearance-none bg-white cursor-pointer"
-                      >
-                        <option>Select Gender</option>
-                        <option>Male</option>
-                        <option>Female</option>
-                        <option>Other</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-6 animate-fade-in w-full flex flex-col items-center">
-                  <div className="w-24 h-24 bg-orange-50 rounded-full border-4 border-orange-100 flex items-center justify-center shadow-inner mb-4">
-                    <Calendar size={44} className="text-[#ff7448]" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-[#421d18] text-center mb-4">What's your date of birth?</h2>
-                  <div className="w-full">
-                    <div className="relative flex items-center">
-                      <input
-                        type="text"
-                        value={formData.dob}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          const clean = value.replace(/\D/g, "");
-                          let formatted = "";
-                          if (clean.length > 0) {
-                            formatted += clean.substring(0, 2);
-                          }
-                          if (clean.length > 2) {
-                            formatted += " / " + clean.substring(2, 4);
-                          }
-                          if (clean.length > 4) {
-                            let yearVal = clean.substring(4, 8);
-                            if (yearVal.length === 4) {
-                              const currentYear = new Date().getFullYear();
-                              if (parseInt(yearVal, 10) > currentYear) {
-                                yearVal = currentYear.toString();
-                              }
-                            }
-                            formatted += " / " + yearVal;
-                          }
-                          handleChange("dob", formatted);
-                        }}
-                        placeholder="DD / MM / YYYY"
-                        maxLength={14}
-                        className="w-full px-5 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm pr-12"
-                      />
-                      <div className="absolute right-4 w-6 h-6 flex items-center justify-center cursor-pointer">
-                        <Calendar size={20} className="text-[#ff7448]" />
-                        <input
-                          type="date"
-                          max={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`}
-                          className="absolute inset-0 opacity-0 cursor-pointer"
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (!val) return;
-                            const [year, month, day] = val.split("-");
-                            handleChange("dob", `${day} / ${month} / ${year}`);
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 4 && (() => {
-                const { hour, minute, ampm } = parseTob(formData.tob);
-                return (
-                  <div className="space-y-6 animate-fade-in w-full flex flex-col items-center">
-                    <div className="w-24 h-24 bg-orange-50 rounded-full border-4 border-orange-100 flex items-center justify-center shadow-inner mb-4">
-                      <Clock size={44} className="text-[#ff7448]" />
-                    </div>
-                    <h2 className="text-2xl font-bold text-[#421d18] text-center mb-4">What's your time of birth?</h2>
-                    
-                    <div className="flex items-center justify-between gap-4 w-full max-w-sm">
-                      {/* Hour Input Box */}
-                      <div className="flex flex-col items-center flex-1">
-                        <input
-                          type="text"
-                          placeholder="HH"
-                          value={hour}
-                          maxLength={2}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, "");
-                            let hrsVal = val;
-                            if (val.length === 2) {
-                              const hrs = parseInt(val, 10);
-                              if (hrs > 12) hrsVal = "12";
-                              if (hrs === 0) hrsVal = "12";
-                            }
-                            updateTob(hrsVal, minute, ampm);
-                          }}
-                          onBlur={handleHourBlur}
-                          className="w-full text-center py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-lg font-bold shadow-sm"
-                        />
-                        <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Hour</span>
-                      </div>
-
-                      {/* Colon Separator */}
-                      <span className="text-3xl font-extrabold text-gray-300 pb-5">:</span>
-
-                      {/* Minute Input Box */}
-                      <div className="flex flex-col items-center flex-1">
-                        <input
-                          type="text"
-                          placeholder="MM"
-                          value={minute}
-                          maxLength={2}
-                          onChange={(e) => {
-                            const val = e.target.value.replace(/\D/g, "");
-                            let minsVal = val;
-                            if (val.length === 2) {
-                              const mins = parseInt(val, 10);
-                              if (mins > 59) minsVal = "59";
-                            }
-                            updateTob(hour, minsVal, ampm);
-                          }}
-                          onBlur={handleMinuteBlur}
-                          className="w-full text-center py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-lg font-bold shadow-sm"
-                        />
-                        <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Minute</span>
-                      </div>
-
-                      {/* AM / PM Toggle buttons */}
-                      <div className="flex flex-col items-center ml-2">
-                        <div className="flex bg-gray-100 p-1.5 rounded-2xl border border-orange-50/50">
-                          <button
-                            type="button"
-                            onClick={() => updateTob(hour, minute, "AM")}
-                            className={`px-3.5 py-3 rounded-xl font-bold transition-all text-xs cursor-pointer ${
-                              ampm === "AM"
-                                ? "bg-[#ff7448] text-white shadow-md shadow-orange-500/25"
-                                : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            AM
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateTob(hour, minute, "PM")}
-                            className={`px-3.5 py-3 rounded-xl font-bold transition-all text-xs cursor-pointer ${
-                              ampm === "PM"
-                                ? "bg-[#ff7448] text-white shadow-md shadow-orange-500/25"
-                                : "text-gray-500 hover:text-gray-700"
-                            }`}
-                          >
-                            PM
-                          </button>
-                        </div>
-                        <span className="text-[10px] font-bold text-gray-400 mt-1 uppercase tracking-wider">Period</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {step === 5 && (
-                <div className="space-y-6 animate-fade-in w-full flex flex-col items-center">
-                  <div className="w-24 h-24 bg-orange-50 rounded-full border-4 border-orange-100 flex items-center justify-center shadow-inner mb-4">
-                    <MapPin size={44} className="text-[#ff7448]" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-[#421d18] text-center mb-4">What's your place of birth?</h2>
-                  <div className="w-full">
-                    <div className="relative flex items-center">
-                      <MapPin size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.birthPlace}
-                        onChange={(e) => handleChange("birthPlace", e.target.value)}
-                        placeholder="Enter your birth place"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 6 && (
-                <div className="space-y-6 animate-fade-in w-full">
-                  <h2 className="text-xl font-bold text-[#421d18] text-center mb-4">What's your current city?</h2>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">City *</label>
-                    <div className="relative flex items-center">
-                      <MapPin size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.city}
-                        onChange={(e) => handleChange("city", e.target.value)}
-                        placeholder="Enter city"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 7 && (
-                <div className="space-y-6 animate-fade-in w-full">
-                  <h2 className="text-xl font-bold text-[#421d18] text-center mb-4">What state do you live in?</h2>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">State *</label>
-                    <div className="relative flex items-center">
-                      <Map size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.state}
-                        onChange={(e) => handleChange("state", e.target.value)}
-                        placeholder="Enter state"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {step === 8 && (
-                <div className="space-y-6 animate-fade-in w-full">
-                  <h2 className="text-xl font-bold text-[#421d18] text-center mb-4">What is your country?</h2>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Country *</label>
-                    <div className="relative flex items-center">
-                      <MapPin size={20} className="text-[#ff7448] absolute left-4" />
-                      <input
-                        type="text"
-                        value={formData.country}
-                        onChange={(e) => handleChange("country", e.target.value)}
-                        placeholder="Enter country"
-                        className="w-full pl-12 pr-4 py-4 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
-
-            {/* Progress Tracker bar */}
-            <div className="flex items-center justify-between gap-4 mt-8 px-1">
-              <div className="flex-1 bg-gray-100 h-2 rounded-full overflow-hidden">
-                <div
-                  className="bg-[#ff7448] h-full rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
-                ></div>
               </div>
-              <span className="text-[#ff7448] font-bold text-sm">{progress}%</span>
+
+              {/* Gender */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Gender *</label>
+                <div className="relative flex items-center">
+                  <User size={20} className="text-[#ff7448] absolute left-4 pointer-events-none z-10" />
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => handleChange("gender", e.target.value)}
+                    className="w-full pl-12 pr-10 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm appearance-none bg-white cursor-pointer"
+                  >
+                    <option>Select Gender</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                    <option>Other</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 text-gray-500 w-5 h-5 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Date of Birth *</label>
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    value={formData.dob}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      const clean = value.replace(/\D/g, "");
+                      let formatted = "";
+                      if (clean.length > 0) {
+                        formatted += clean.substring(0, 2);
+                      }
+                      if (clean.length > 2) {
+                        formatted += " / " + clean.substring(2, 4);
+                      }
+                      if (clean.length > 4) {
+                        let yearVal = clean.substring(4, 8);
+                        if (yearVal.length === 4) {
+                          const currentYear = new Date().getFullYear();
+                          if (parseInt(yearVal, 10) > currentYear) {
+                            yearVal = currentYear.toString();
+                          }
+                        }
+                        formatted += " / " + yearVal;
+                      }
+                      handleChange("dob", formatted);
+                    }}
+                    placeholder="DD / MM / YYYY"
+                    maxLength={14}
+                    className="w-full px-5 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm pr-12"
+                  />
+                  <div className="absolute right-4 w-6 h-6 flex items-center justify-center cursor-pointer">
+                    <Calendar size={20} className="text-[#ff7448]" />
+                    <input
+                      type="date"
+                      max={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        const [year, month, day] = val.split("-");
+                        handleChange("dob", `${day} / ${month} / ${year}`);
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Time of Birth */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Time of Birth *</label>
+                <div className="relative flex items-center">
+                  <Clock size={20} className="text-[#ff7448] absolute left-4 pointer-events-none" />
+                  <input
+                    type="time"
+                    value={formData.tob}
+                    onChange={(e) => handleChange("tob", e.target.value)}
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Birth Place */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Birth Place *</label>
+                <div className="relative flex items-center">
+                  <MapPin size={20} className="text-[#ff7448] absolute left-4" />
+                  <input
+                    type="text"
+                    value={formData.birthPlace}
+                    onChange={(e) => handleChange("birthPlace", e.target.value)}
+                    placeholder="Enter birth place"
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* City */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">City *</label>
+                <div className="relative flex items-center">
+                  <Map size={20} className="text-[#ff7448] absolute left-4" />
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => handleChange("city", e.target.value)}
+                    placeholder="Enter city"
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* State */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">State *</label>
+                <div className="relative flex items-center">
+                  <Map size={20} className="text-[#ff7448] absolute left-4" />
+                  <input
+                    type="text"
+                    value={formData.state}
+                    onChange={(e) => handleChange("state", e.target.value)}
+                    placeholder="Enter state"
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Country */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Country *</label>
+                <div className="relative flex items-center">
+                  <MapPin size={20} className="text-[#ff7448] absolute left-4" />
+                  <input
+                    type="text"
+                    value={formData.country}
+                    onChange={(e) => handleChange("country", e.target.value)}
+                    placeholder="Enter country"
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">Address (Optional)</label>
+                <div className="relative flex items-start">
+                  <MapPin size={20} className="text-[#ff7448] absolute left-4 top-3.5" />
+                  <textarea
+                    rows="3"
+                    value={formData.address}
+                    onChange={(e) => handleChange("address", e.target.value)}
+                    placeholder="Enter your current address"
+                    className="w-full pl-12 pr-4 py-3.5 border border-orange-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-orange-400 text-base shadow-sm resize-none"
+                  ></textarea>
+                </div>
+              </div>
+
             </div>
 
-            {/* Continue button */}
+            {/* Complete Profile button */}
             <button
               onClick={handleContinue}
               disabled={isUpdating}
-              className={`w-full mt-6 bg-gradient-to-r from-orange-400 to-[#ff7448] text-white py-4 rounded-2xl text-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 active:scale-[0.99] transition-all cursor-pointer ${isUpdating ? "opacity-60 cursor-not-allowed" : ""}`}
+              className={`w-full mt-8 bg-gradient-to-r from-orange-400 to-[#ff7448] text-white py-4 rounded-2xl text-lg font-bold flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 active:scale-[0.99] transition-all cursor-pointer ${isUpdating ? "opacity-60 cursor-not-allowed" : ""}`}
             >
-              {isUpdating ? "Completing Profile..." : (step === 8 ? "Complete Profile" : "Continue")}
+              {isUpdating ? "Completing Profile..." : "Complete Profile"}
               <ArrowRight size={20} />
             </button>
           </div>

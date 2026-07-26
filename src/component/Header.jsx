@@ -27,7 +27,16 @@ function Header() {
             </h2>
 
             <p className="text-gray-700 text-[13px] mt-1">
-              {isLoggedIn ? "Welcome back!" : "Explore Astrology Services"}
+              {isLoggedIn ? (
+                (() => {
+                  try {
+                    const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+                    return userObj.uniqueId ? `ID: ${userObj.uniqueId}` : "Welcome back!";
+                  } catch {
+                    return "Welcome back!";
+                  }
+                })()
+              ) : "Explore Astrology Services"}
             </p>
           </div>
         </div>

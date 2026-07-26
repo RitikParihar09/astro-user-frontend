@@ -43,7 +43,20 @@ function Profile() {
               {userName || "Astro User"}
             </h1>
 
-            <p className="text-white/80 text-sm">
+            {(() => {
+              try {
+                const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+                return userObj.uniqueId ? (
+                  <p className="text-white/90 text-xs font-bold bg-black/15 py-1 px-3.5 rounded-full inline-block mt-1 tracking-wider">
+                    ID: {userObj.uniqueId}
+                  </p>
+                ) : null;
+              } catch {
+                return null;
+              }
+            })()}
+
+            <p className="text-white/80 text-sm mt-1">
               {userName ? `${userName.toLowerCase().replace(/\s+/g, "")}@gmail.com` : "user@gmail.com"}
             </p>
 
