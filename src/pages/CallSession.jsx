@@ -18,7 +18,7 @@ export default function CallSession() {
 
   // Call states: PENDING, ACTIVE, COMPLETED, REJECTED, MISSED, CANCELLED
   const [sessionStatus, setSessionStatus] = useState("PENDING");
-  const [callType, setCallType] = useState(initialCallType || "AUDIO");
+  const [callType, setCallType] = useState(() => String(initialCallType || "AUDIO").toUpperCase());
   const [channelName, setChannelName] = useState(initialChannelName || "");
   const [ratePerMinute, setRatePerMinute] = useState(astrologer?.priceRaw || 0);
 
@@ -167,7 +167,7 @@ export default function CallSession() {
       const appID = data.agora?.appId || data.appId || data.appID;
       const channel = data.channelName || data.agora?.channelName || channelName;
       const rtcToken = data.agora?.token || data.token || data.rtcToken;
-      const callMode = data.session?.callType || data.callType || callType;
+      const callMode = String(data.session?.callType || data.callType || callType).toUpperCase();
 
       setCallType(callMode);
       setChannelName(channel);
