@@ -125,10 +125,10 @@ function Otp() {
         if (data.data && data.data.token) {
           localStorage.setItem("authToken", data.data.token);
           if (data.data.user) {
-            localStorage.setItem("user", JSON.stringify(data.data.user));
-            if (data.data.user.name) {
-              updateUserName(data.data.user.name);
-            }
+            const u = data.data.user;
+            localStorage.setItem("user", JSON.stringify(u));
+            const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || u.phone || "Astro User";
+            updateUserName(fullName);
           }
         } else {
           // Fallback: If it only verified, call login API next, ignoring database constraint errors in frontend
@@ -157,10 +157,10 @@ function Otp() {
                   localStorage.setItem("authToken", loginData.data.token);
                 }
                 if (loginData.data.user) {
-                  localStorage.setItem("user", JSON.stringify(loginData.data.user));
-                  if (loginData.data.user.name) {
-                    updateUserName(loginData.data.user.name);
-                  }
+                  const u = loginData.data.user;
+                  localStorage.setItem("user", JSON.stringify(u));
+                  const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || u.phone || "Astro User";
+                  updateUserName(fullName);
                 }
               }
             }

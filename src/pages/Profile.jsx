@@ -16,11 +16,13 @@ function Profile() {
   const navigate = useNavigate();
   const { logoutUser, userName, updateUserName } = useAuth();
   const [uniqueId, setUniqueId] = useState("");
+  const [email, setEmail] = useState("");
 
   useEffect(() => {
     try {
       const cached = JSON.parse(localStorage.getItem("user") || "{}");
       if (cached.uniqueId) setUniqueId(cached.uniqueId);
+      if (cached.email) setEmail(cached.email);
     } catch (e) {}
 
     const token = localStorage.getItem("authToken");
@@ -36,6 +38,7 @@ function Profile() {
             const u = data.data;
             localStorage.setItem("user", JSON.stringify(u));
             if (u.uniqueId) setUniqueId(u.uniqueId);
+            if (u.email) setEmail(u.email);
             if (u.name) {
               updateUserName(u.name);
             }
@@ -79,9 +82,11 @@ function Profile() {
               </p>
             )}
 
-            <p className="text-white/80 text-sm mt-1">
-              {userName ? `${userName.toLowerCase().replace(/\s+/g, "")}@gmail.com` : "user@gmail.com"}
-            </p>
+            {email && (
+              <p className="text-white/80 text-sm mt-1">
+                {email.endsWith("@kalpjoytish.com") ? `Phone: +91 ${email.split("@")[0]}` : email}
+              </p>
+            )}
 
             {/* Progress Circle */}
             <div className="w-28 h-28 border-8 border-white/30 rounded-full flex items-center justify-center mx-auto mt-6">
