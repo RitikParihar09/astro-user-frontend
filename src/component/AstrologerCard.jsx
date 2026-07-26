@@ -60,7 +60,7 @@ function AstrologerCard({ item }) {
 
       let response;
       let resData;
-      let isMock = import.meta.env.VITE_USE_MOCK_OTP === "true" || localStorage.getItem("use_mock_otp") === "true";
+      let isMock = false;
 
       if (!isMock) {
         try {

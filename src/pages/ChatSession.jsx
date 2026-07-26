@@ -100,51 +100,86 @@ export default function ChatSession() {
     const userId = userObj._id || userObj.id || "";
 
     // Join room immediately if already connected, and also on reconnect
+    const cleanSessionId = typeof sessionId === "string" ? sessionId : (sessionId?._id || sessionId?.sessionId || "");
+    const emitJoinRooms = () => {
+      if (!cleanSessionId) return;
+      if (userId) {
+        socket.emit("register_user", { userId });
+        socket.emit("register_user", userId);
+        socket.emit("join_user", `user_${userId}`);
+      }
+      socket.emit("join_session", { sessionId: cleanSessionId, roomId: cleanSessionId, chatId: cleanSessionId });
+      socket.emit("join_session", cleanSessionId);
+      socket.emit("join_session", `session_${cleanSessionId}`);
+      socket.emit("join_room", cleanSessionId);
+      socket.emit("join_room", `session_${cleanSessionId}`);
+      socket.emit("join_room", `chat_${cleanSessionId}`);
+      socket.emit("join_room", `room_${cleanSessionId}`);
+      socket.emit("join", cleanSessionId);
+      socket.emit("join", `session_${cleanSessionId}`);
+    };
+
     if (socket.connected) {
       console.log("Connected on mount, joining room directly.");
-      if (userId) socket.emit("register_user", { userId });
-      socket.emit("join_session", { sessionId });
-      socket.emit("join_session", sessionId);
+      emitJoinRooms();
     }
 
     socket.on("connect", () => {
       console.log("Connected to Chat Socket:", socket.id);
-      if (userId) socket.emit("register_user", { userId });
-      socket.emit("join_session", { sessionId });
-      socket.emit("join_session", sessionId);
+      emitJoinRooms();
+    });
+
+    // Catch-all socket event listener for debugging & complete message coverage
+    socket.onAny((eventName, data) => {
+      if (eventName.toLowerCase().includes("message") || eventName.toLowerCase().includes("receive")) {
+        console.log("💬 [User Socket Event Received]:", eventName, data);
+      }
     });
 
     // Listen for incoming messages
-    socket.on("receive_message", (msg) => {
+    const handleReceiveMsgUser = (msg) => {
       if (!msg) return;
       
-      const msgSessionId = msg.sessionId || msg.chatId || msg.roomId || "";
-      if (sessionId && msgSessionId && String(msgSessionId) !== String(sessionId)) {
-        console.log(`🗑️ Discarding message meant for session ${msgSessionId} (Current session is ${sessionId})`);
+      const extractId = (obj) => {
+        if (!obj) return "";
+        if (typeof obj === "string" || typeof obj === "number") return String(obj);
+        return String(obj.sessionId || obj.chatId || obj.roomId || obj._id || obj.id || (obj.session && (typeof obj.session === "object" ? (obj.session._id || obj.session.id) : obj.session)) || "");
+      };
+
+      const cleanMsgSessionId = extractId(msg.sessionId || msg.chatId || msg.roomId || msg.session || msg);
+      const activeCleanId = extractId(sessionId);
+
+      if (activeCleanId && cleanMsgSessionId && String(cleanMsgSessionId) !== String(activeCleanId)) {
+        console.log(`🗑️ Discarding message meant for session ${cleanMsgSessionId} (Current session is ${activeCleanId})`);
         return;
       }
 
-      // Hide waiting screen instantly if any message is received
-      setSessionStatus("ACTIVE");
+      const isUserMsg = String(msg.senderType || msg.role || "").toUpperCase() === "USER";
+
+      // Hide waiting screen ONLY if message is from the ASTROLOGER (not on user's own DOB message)
+      if (!isUserMsg) {
+        setSessionStatus("ACTIVE");
+      }
       
+      const msgText = msg.text || msg.message || msg.content || "";
+      if (!msgText && !msg.mediaUrl) return;
+
+      const msgId = String(msg._id || msg.id || "msg_" + Date.now());
+
       setMessages((prev) => {
         try {
           if (!Array.isArray(prev)) return [];
-          const msgId = msg._id || msg.id;
-          if (!msgId) return prev;
 
           // Avoid duplicate by ID
-          if (prev.some((m) => m && m.id === msgId)) return prev;
+          if (prev.some((m) => m && String(m.id || m._id || "") === msgId)) return prev;
 
           // Check if there is a matching temporary message from the user
-          const isUserMsg = msg.senderType?.toLowerCase() === "user";
           if (isUserMsg) {
-            const msgText = (msg.text || msg.message || msg.content || "").toString().trim();
             const tempMsgIndex = prev.findIndex(
               (m) =>
                 m &&
                 m.sender === "user" &&
-                (m.text || "").toString().trim() === msgText &&
+                (m.text || "").toString().trim() === msgText.trim() &&
                 String(m.id || "").startsWith("temp_")
             );
             if (tempMsgIndex !== -1) {
@@ -153,7 +188,7 @@ export default function ChatSession() {
               updated[tempMsgIndex] = {
                 id: msgId,
                 sender: "user",
-                text: msg.text || msg.message || msg.content || "",
+                text: msgText,
                 image: msg.mediaUrl,
                 time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
                   hour: "2-digit",
@@ -169,7 +204,7 @@ export default function ChatSession() {
             {
               id: msgId,
               sender: isUserMsg ? "user" : "astrologer",
-              text: msg.text || msg.message || msg.content || "",
+              text: msgText,
               image: msg.mediaUrl,
               time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
                 hour: "2-digit",
@@ -182,7 +217,14 @@ export default function ChatSession() {
           return prev;
         }
       });
-    });
+    };
+
+    socket.on("receive_message", handleReceiveMsgUser);
+    socket.on("receive-message", handleReceiveMsgUser);
+    socket.on("receive_msg", handleReceiveMsgUser);
+    socket.on("new_message", handleReceiveMsgUser);
+    socket.on("chat_message", handleReceiveMsgUser);
+    socket.on("message", handleReceiveMsgUser);
 
     // Listen for active state / tick / acceptance events
     socket.on("session_active", () => {
@@ -194,6 +236,10 @@ export default function ChatSession() {
     });
 
     socket.on("accept_request", () => {
+      setSessionStatus("ACTIVE");
+    });
+
+    socket.on("chat_accepted", () => {
       setSessionStatus("ACTIVE");
     });
 
@@ -211,8 +257,8 @@ export default function ChatSession() {
 
     // Chat ended event
     const handleChatEnded = (data) => {
-      console.log("🔴 Chat Session Ended received:", data);
-      alert("This chat session has been completed by the astrologer.");
+      console.log("Chat ended event received on socket:", data);
+      alert(data?.message || "This chat session has ended.");
       if (socketRef.current) {
         socketRef.current.disconnect();
       }
@@ -225,7 +271,7 @@ export default function ChatSession() {
     socket.on("end_chat", handleChatEnded);
     socket.on("end_session", handleChatEnded);
 
-    // Fetch initial chat history
+    // Fetch chat history
     const fetchHistory = async () => {
       try {
         const response = await fetch(`https://kalpjoytish-backend.onrender.com/api/chat/history/${sessionId}`, {
@@ -234,27 +280,43 @@ export default function ChatSession() {
           }
         });
         const resData = await response.json();
-        if (response.ok && resData.success) {
+        if (response.ok && resData.success && Array.isArray(resData.data)) {
           const historyMessages = resData.data.map((msg) => ({
-            id: msg._id,
-            sender: msg.senderType?.toLowerCase() === "user" ? "user" : "astrologer",
-            text: msg.text || msg.message || msg.content,
+            id: String(msg._id || msg.id),
+            sender: String(msg.senderType || msg.role || "").toLowerCase() === "user" ? "user" : "astrologer",
+            text: msg.text || msg.message || msg.content || "",
             image: msg.mediaUrl,
-            time: new Date(msg.createdAt).toLocaleTimeString([], {
+            time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
             }),
           }));
-          setMessages(historyMessages);
+
+          if (historyMessages.some((m) => m.sender === "astrologer")) {
+            setSessionStatus("ACTIVE");
+          }
+
+          setMessages((prev) => {
+            if (!Array.isArray(prev) || prev.length === 0) return historyMessages;
+            const existingIds = new Set(prev.map((m) => String(m.id || m._id || "")));
+            const newMsgs = historyMessages.filter((m) => m && !existingIds.has(String(m.id)));
+            if (newMsgs.length > 0) {
+              return [...prev, ...newMsgs];
+            }
+            return prev;
+          });
         }
       } catch (err) {
         console.error("Failed to load history:", err);
       }
     };
 
-    // Fallback REST polling for status transition
+    // Fallback REST polling for status transition and chat message sync
     const statusPoll = setInterval(async () => {
       try {
+        // Sync history continuously
+        fetchHistory();
+
         const userObj = JSON.parse(localStorage.getItem("user") || "{}");
         const userId = userObj._id || userObj.id || "";
         if (!userId) return;
@@ -289,7 +351,7 @@ export default function ChatSession() {
       } catch (e) {
         console.error("Status poll error:", e);
       }
-    }, 3000);
+    }, 2500);
 
     fetchHistory();
 
@@ -306,54 +368,92 @@ export default function ChatSession() {
     
     // Emit initial DoB message through socket
     const formattedDob = formatDobToLong(tempDob);
+    const dobText = `🎂 My Date of Birth is ${formattedDob}`;
+    const token = localStorage.getItem("authToken");
+
     if (socketRef.current) {
       socketRef.current.emit("send_message", {
         sessionId: sessionId,
         chatId: sessionId,
         roomId: sessionId,
         senderId: userId,
-        senderType: "user",
-        text: `🎂 My Date of Birth is ${formattedDob}`,
+        senderType: "USER",
+        text: dobText,
         messageType: "text"
       });
     }
+
+    fetch("https://kalpjoytish-backend.onrender.com/api/chat/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        sessionId: sessionId,
+        senderId: userId,
+        senderType: "USER",
+        text: dobText,
+        messageType: "text"
+      })
+    }).catch((err) => console.error("DOB send message REST API error:", err));
   };
 
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!inputMessage.trim()) return;
 
+    const msgText = inputMessage;
+    const token = localStorage.getItem("authToken");
+
+    // 1. Emit via Socket
     if (socketRef.current) {
       socketRef.current.emit("send_message", {
         sessionId: sessionId,
         chatId: sessionId,
         roomId: sessionId,
         senderId: userId,
-        senderType: "user",
-        text: inputMessage,
+        senderType: "USER",
+        text: msgText,
         messageType: "text"
       });
-      
-      // Optimistic locally added message
-      const now = new Date();
-      const formattedTime = now.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      const tempId = "temp_" + Date.now();
-      
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: tempId,
-          sender: "user",
-          text: inputMessage,
-          time: formattedTime,
-          status: "sent"
-        }
-      ]);
-      setInputMessage("");
     }
+
+    // 2. Call REST API as persistent fallback
+    fetch("https://kalpjoytish-backend.onrender.com/api/chat/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        sessionId: sessionId,
+        senderId: userId,
+        senderType: "USER",
+        text: msgText,
+        messageType: "text"
+      })
+    }).catch((err) => console.error("User send message REST API error:", err));
+
+    // Optimistic locally added message
+    const now = new Date();
+    const formattedTime = now.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const tempId = "temp_" + Date.now();
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        sender: "user",
+        text: msgText,
+        time: formattedTime,
+        status: "sent"
+      }
+    ]);
+    setInputMessage("");
   };
 
   const handleImageUpload = async (e) => {
@@ -390,7 +490,7 @@ export default function ChatSession() {
             chatId: sessionId,
             roomId: sessionId,
             senderId: userId,
-            senderType: "user",
+            senderType: "USER",
             text: "",
             mediaUrl: imageUrl,
             messageType: "image"
