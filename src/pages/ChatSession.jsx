@@ -169,41 +169,40 @@ export default function ChatSession() {
       setMessages((prev) => {
         try {
           if (!Array.isArray(prev)) return [];
+          const senderRole = isUserMsg ? "user" : "astrologer";
+          const trimmedText = msgText.trim();
 
-          // Avoid duplicate by ID
-          if (prev.some((m) => m && String(m.id || m._id || "") === msgId)) return prev;
+          // 1. Avoid duplicate by ID
+          if (msgId && prev.some((m) => m && String(m.id || m._id || "") === msgId)) return prev;
 
-          // Check if there is a matching temporary message from the user
-          if (isUserMsg) {
-            const tempMsgIndex = prev.findIndex(
-              (m) =>
-                m &&
-                m.sender === "user" &&
-                (m.text || "").toString().trim() === msgText.trim() &&
-                String(m.id || "").startsWith("temp_")
-            );
-            if (tempMsgIndex !== -1) {
-              // Replace the temporary message with the real one
-              const updated = [...prev];
-              updated[tempMsgIndex] = {
-                id: msgId,
-                sender: "user",
-                text: msgText,
-                image: msg.mediaUrl,
-                time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }),
-              };
-              return updated;
-            }
+          // 2. Check if matching message exists by sender & text (temp message or unconfirmed message)
+          const matchIndex = prev.findIndex(
+            (m) =>
+              m &&
+              m.sender === senderRole &&
+              (m.text || "").toString().trim() === trimmedText
+          );
+
+          if (matchIndex !== -1) {
+            const updated = [...prev];
+            updated[matchIndex] = {
+              id: msgId,
+              sender: senderRole,
+              text: msgText,
+              image: msg.mediaUrl,
+              time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            };
+            return updated;
           }
 
           return [
             ...prev,
             {
               id: msgId,
-              sender: isUserMsg ? "user" : "astrologer",
+              sender: senderRole,
               text: msgText,
               image: msg.mediaUrl,
               time: new Date(msg.createdAt || Date.now()).toLocaleTimeString([], {
@@ -220,11 +219,6 @@ export default function ChatSession() {
     };
 
     socket.on("receive_message", handleReceiveMsgUser);
-    socket.on("receive-message", handleReceiveMsgUser);
-    socket.on("receive_msg", handleReceiveMsgUser);
-    socket.on("new_message", handleReceiveMsgUser);
-    socket.on("chat_message", handleReceiveMsgUser);
-    socket.on("message", handleReceiveMsgUser);
 
     // Listen for active state / tick / acceptance events
     socket.on("session_active", () => {
@@ -298,12 +292,28 @@ export default function ChatSession() {
 
           setMessages((prev) => {
             if (!Array.isArray(prev) || prev.length === 0) return historyMessages;
-            const existingIds = new Set(prev.map((m) => String(m.id || m._id || "")));
-            const newMsgs = historyMessages.filter((m) => m && !existingIds.has(String(m.id)));
-            if (newMsgs.length > 0) {
-              return [...prev, ...newMsgs];
+            let updated = [...prev];
+            let hasChanges = false;
+
+            for (const h of historyMessages) {
+              if (!h) continue;
+              const existsById = updated.some((p) => String(p.id || p._id || "") === String(h.id));
+              if (existsById) continue;
+
+              const matchIdx = updated.findIndex(
+                (p) => p.sender === h.sender && (p.text || "").toString().trim() === (h.text || "").toString().trim()
+              );
+
+              if (matchIdx !== -1) {
+                updated[matchIdx] = h;
+                hasChanges = true;
+              } else {
+                updated.push(h);
+                hasChanges = true;
+              }
             }
-            return prev;
+
+            return hasChanges ? updated : prev;
           });
         }
       } catch (err) {
@@ -371,7 +381,7 @@ export default function ChatSession() {
     const dobText = `🎂 My Date of Birth is ${formattedDob}`;
     const token = localStorage.getItem("authToken");
 
-    if (socketRef.current) {
+    if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit("send_message", {
         sessionId: sessionId,
         chatId: sessionId,
@@ -381,22 +391,22 @@ export default function ChatSession() {
         text: dobText,
         messageType: "text"
       });
+    } else {
+      fetch("https://kalpjoytish-backend.onrender.com/api/chat/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          senderId: userId,
+          senderType: "USER",
+          text: dobText,
+          messageType: "text"
+        })
+      }).catch((err) => console.error("DOB send message REST API error:", err));
     }
-
-    fetch("https://kalpjoytish-backend.onrender.com/api/chat/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({
-        sessionId: sessionId,
-        senderId: userId,
-        senderType: "USER",
-        text: dobText,
-        messageType: "text"
-      })
-    }).catch((err) => console.error("DOB send message REST API error:", err));
   };
 
   const handleSendMessage = (e) => {
@@ -406,8 +416,8 @@ export default function ChatSession() {
     const msgText = inputMessage;
     const token = localStorage.getItem("authToken");
 
-    // 1. Emit via Socket
-    if (socketRef.current) {
+    // 1. Emit via Socket if connected
+    if (socketRef.current && socketRef.current.connected) {
       socketRef.current.emit("send_message", {
         sessionId: sessionId,
         chatId: sessionId,
@@ -417,23 +427,22 @@ export default function ChatSession() {
         text: msgText,
         messageType: "text"
       });
+    } else {
+      fetch("https://kalpjoytish-backend.onrender.com/api/chat/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          sessionId: sessionId,
+          senderId: userId,
+          senderType: "USER",
+          text: msgText,
+          messageType: "text"
+        })
+      }).catch((err) => console.error("User send message REST API error:", err));
     }
-
-    // 2. Call REST API as persistent fallback
-    fetch("https://kalpjoytish-backend.onrender.com/api/chat/send", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { "Authorization": `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({
-        sessionId: sessionId,
-        senderId: userId,
-        senderType: "USER",
-        text: msgText,
-        messageType: "text"
-      })
-    }).catch((err) => console.error("User send message REST API error:", err));
 
     // Optimistic locally added message
     const now = new Date();

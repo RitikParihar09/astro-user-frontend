@@ -45,6 +45,7 @@ export default function CallSession() {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const timerRef = useRef(null);
+  const isInitRef = useRef(false);
 
   // Format second timer to MM:SS
   const formatTime = (totalSecs) => {
@@ -73,6 +74,7 @@ export default function CallSession() {
 
   // Clean up Agora tracks & client
   const cleanupCall = async () => {
+    isInitRef.current = false;
     if (localAudioTrackRef.current) {
       localAudioTrackRef.current.stop();
       localAudioTrackRef.current.close();
@@ -250,8 +252,27 @@ export default function CallSession() {
       setSessionStatus("ACTIVE");
       return;
     }
+
+    if (isInitRef.current) {
+      console.log("Agora connection is already initializing, ignoring duplicate socket event trigger.");
+      return;
+    }
+    isInitRef.current = true;
+
     try {
-      await cleanupCall();
+      // Clean up previous runs
+      if (localAudioTrackRef.current) {
+        try { localAudioTrackRef.current.stop(); localAudioTrackRef.current.close(); } catch(e){}
+        localAudioTrackRef.current = null;
+      }
+      if (localVideoTrackRef.current) {
+        try { localVideoTrackRef.current.stop(); localVideoTrackRef.current.close(); } catch(e){}
+        localVideoTrackRef.current = null;
+      }
+      if (clientRef.current) {
+        try { await clientRef.current.leave(); } catch (e) {}
+        clientRef.current = null;
+      }
 
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       clientRef.current = client;
@@ -281,15 +302,22 @@ export default function CallSession() {
 
       // Create local tracks and publish
       if (mode === "VIDEO") {
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
-        localAudioTrackRef.current = audioTrack;
-        localVideoTrackRef.current = videoTrack;
+        try {
+          const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+          localAudioTrackRef.current = audioTrack;
+          localVideoTrackRef.current = videoTrack;
 
-        if (localVideoRef.current) {
-          videoTrack.play(localVideoRef.current);
+          if (localVideoRef.current) {
+            videoTrack.play(localVideoRef.current);
+          }
+
+          await client.publish([audioTrack, videoTrack]);
+        } catch (videoErr) {
+          console.warn("⚠️ Camera/Mic error on video mode, falling back to audio only:", videoErr);
+          const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+          localAudioTrackRef.current = audioTrack;
+          await client.publish([audioTrack]);
         }
-
-        await client.publish([audioTrack, videoTrack]);
       } else {
         const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         localAudioTrackRef.current = audioTrack;
@@ -299,6 +327,7 @@ export default function CallSession() {
 
       setSessionStatus("ACTIVE");
     } catch (err) {
+      isInitRef.current = false;
       console.error("Agora configuration failed:", err);
       alert("Could not start audio/video streaming: " + err.message);
       handleEndCall();

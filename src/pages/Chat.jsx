@@ -114,10 +114,16 @@ export default function Chat() {
       const token = localStorage.getItem("authToken");
       const userObj = JSON.parse(localStorage.getItem("user") || "{}");
       const userId = userObj._id || userObj.id || "";
+      const userName = userObj.name ||
+                       userObj.userName ||
+                       (userObj.firstname ? `${userObj.firstname} ${userObj.lastname || ""}`.trim() : "") ||
+                       localStorage.getItem("userName") ||
+                       "";
 
       console.log("Starting chat request with payload:", {
         userId,
         astrologerId: item.id,
+        name: userName,
         token: token ? `${token.substring(0, 15)}...` : "missing"
       });
 
@@ -129,7 +135,9 @@ export default function Chat() {
         },
         body: JSON.stringify({
           userId: userId,
-          astrologerId: item.id
+          astrologerId: item.id,
+          name: userName,
+          userName: userName
         })
       });
 
