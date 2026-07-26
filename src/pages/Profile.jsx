@@ -39,9 +39,8 @@ function Profile() {
             localStorage.setItem("user", JSON.stringify(u));
             if (u.uniqueId) setUniqueId(u.uniqueId);
             if (u.email) setEmail(u.email);
-            if (u.name) {
-              updateUserName(u.name);
-            }
+            const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || u.phone || "Astro User";
+            updateUserName(fullName);
           }
         })
         .catch((err) => console.error("Profile refresh error:", err));
