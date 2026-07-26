@@ -26,17 +26,21 @@ function Header() {
               {isLoggedIn ? (userName || "Astro User") : "Guest User"}
             </h2>
 
+            {isLoggedIn && (() => {
+              try {
+                const userObj = JSON.parse(localStorage.getItem("user") || "{}");
+                return userObj.uniqueId ? (
+                  <p className="text-[11px] font-bold text-orange-600 tracking-wider mt-1 bg-white/60 px-2 py-0.5 rounded w-max border border-orange-200/50">
+                    ID: {userObj.uniqueId}
+                  </p>
+                ) : null;
+              } catch {
+                return null;
+              }
+            })()}
+
             <p className="text-gray-700 text-[13px] mt-1">
-              {isLoggedIn ? (
-                (() => {
-                  try {
-                    const userObj = JSON.parse(localStorage.getItem("user") || "{}");
-                    return userObj.uniqueId ? `ID: ${userObj.uniqueId}` : "Welcome back!";
-                  } catch {
-                    return "Welcome back!";
-                  }
-                })()
-              ) : "Explore Astrology Services"}
+              {isLoggedIn ? "Welcome back!" : "Explore Astrology Services"}
             </p>
           </div>
         </div>
