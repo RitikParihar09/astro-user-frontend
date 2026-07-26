@@ -1,3 +1,5 @@
+import React, { useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
 import Header from "../component/Header";
 import SearchBar from "../component/SearchBar";
 import Banner from "../component/Banner";
@@ -72,6 +74,34 @@ const planets = [
 ];
 
 function Home() {
+  const { isLoggedIn, updateUserName } = useAuth();
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        fetch("https://kalpjoytish-backend.onrender.com/api/user/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.success && data.data) {
+              const u = data.data;
+              localStorage.setItem("user", JSON.stringify(u));
+              if (u.name) {
+                updateUserName(u.name);
+              } else if (u.firstname) {
+                updateUserName(`${u.firstname} ${u.lastname || ""}`.trim());
+              }
+            }
+          })
+          .catch((err) => console.error("Error refreshing profile:", err));
+      }
+    }
+  }, [isLoggedIn]);
+
   return (
     <div className="min-h-screen bg-[#F6E9E3] flex justify-center">
       <div className="w-full max-w-[430px] bg-[#FDE8E4] min-h-screen relative shadow-xl">
