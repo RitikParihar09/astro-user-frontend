@@ -31,6 +31,7 @@ export default function CallSession() {
   const [peerAudioMuted, setPeerAudioMuted] = useState(false);
   const [peerVideoMuted, setPeerVideoMuted] = useState(false);
   const [hasRemoteVideo, setHasRemoteVideo] = useState(false);
+  const [remoteUser, setRemoteUser] = useState(null);
   
   // Rating and review state
   const [rating, setRating] = useState(5);
@@ -73,9 +74,34 @@ export default function CallSession() {
     };
   }, [sessionStatus]);
 
+  // Play remote video track when remoteUser or container ref becomes available
+  useEffect(() => {
+    if (sessionStatus === "ACTIVE" && remoteUser && remoteUser.videoTrack && remoteVideoRef.current) {
+      console.log("▶️ Playing remote video track in useEffect");
+      try {
+        remoteUser.videoTrack.play(remoteVideoRef.current);
+      } catch (err) {
+        console.error("Error playing remote video track in useEffect:", err);
+      }
+    }
+  }, [remoteUser, sessionStatus]);
+
+  // Play local video track when localVideoTrackRef or container ref becomes available
+  useEffect(() => {
+    if (sessionStatus === "ACTIVE" && localVideoTrackRef.current && localVideoRef.current) {
+      console.log("▶️ Playing local video track in useEffect");
+      try {
+        localVideoTrackRef.current.play(localVideoRef.current);
+      } catch (err) {
+        console.error("Error playing local video track in useEffect:", err);
+      }
+    }
+  }, [sessionStatus, isCameraOff]);
+
   // Clean up Agora tracks & client
   const cleanupCall = async () => {
     isInitRef.current = false;
+    setRemoteUser(null);
     if (localAudioTrackRef.current) {
       localAudioTrackRef.current.stop();
       localAudioTrackRef.current.close();
