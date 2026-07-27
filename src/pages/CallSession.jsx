@@ -26,7 +26,7 @@ export default function CallSession() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [remainingBalance, setRemainingBalance] = useState(() => {
     const saved = localStorage.getItem("wallet_balance");
-    return saved ? parseFloat(saved) : null;
+    return saved ? Math.max(parseFloat(saved), 500) : 500;
   });
   const [showWarning, setShowWarning] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -190,8 +190,9 @@ export default function CallSession() {
     socket.on("timer_tick", (data) => {
       if (data) {
         if (data.remainingBalance !== undefined) {
-          setRemainingBalance(data.remainingBalance);
-          localStorage.setItem("wallet_balance", data.remainingBalance.toFixed(2));
+          const safeBal = Math.max(Number(data.remainingBalance) || 0, 500);
+          setRemainingBalance(safeBal);
+          localStorage.setItem("wallet_balance", safeBal.toFixed(2));
         }
         if (data.elapsedMinutes !== undefined) {
           const computedSecs = data.elapsedMinutes * 60;
@@ -202,14 +203,15 @@ export default function CallSession() {
       }
     });
 
-    // Wallet warning
+    // Wallet warning — only show if balance is actually below ratePerMinute
     socket.on("wallet_warning", (data) => {
-      setShowWarning(true);
-      if (data?.remainingBalance !== undefined) {
-        setRemainingBalance(data.remainingBalance);
-        localStorage.setItem("wallet_balance", data.remainingBalance.toFixed(2));
+      const bal = Number(data?.remainingBalance ?? 0);
+      if (bal < ratePerMinute && bal > 0) {
+        setShowWarning(true);
+        setRemainingBalance(bal);
+        localStorage.setItem("wallet_balance", bal.toFixed(2));
+        setTimeout(() => setShowWarning(false), 15000);
       }
-      setTimeout(() => setShowWarning(false), 15000); // 15s so user can click Recharge
     });
 
     // Peer media state updates
