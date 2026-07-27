@@ -167,6 +167,22 @@ function AstrologerCard({ item }) {
       let resData;
       let isMock = false;
 
+      // Dual-channel dispatch: HTTP API + Direct Socket.io emission for 100% notification guarantee
+      try {
+        const { io } = await import("socket.io-client");
+        const directSocket = io("https://kalpjoytish-backend.onrender.com", { transports: ["polling", "websocket"] });
+        directSocket.on("connect", () => {
+          directSocket.emit("request_call", {
+            userId: userId,
+            astrologerId: astroId,
+            callType: type,
+            walletBalance: currentBalance
+          });
+        });
+      } catch (sErr) {
+        console.warn("Direct socket call request emission warning:", sErr);
+      }
+
       try {
         response = await fetch(`${BACKEND_URL}/api/video-session/request`, {
           method: "POST",
@@ -183,14 +199,12 @@ function AstrologerCard({ item }) {
         });
 
         if (!response.ok) {
-          console.warn("Backend call request returned non-OK status. Falling back to Mock Session.");
-          isMock = true;
+          console.warn("Backend call request returned non-OK status:", response.status);
         } else {
           resData = await response.json();
         }
       } catch (fetchErr) {
-        console.error("Failed to connect to backend for call request. Falling back to Mock Session:", fetchErr);
-        isMock = true;
+        console.error("Failed to connect to backend for call request HTTP fetch:", fetchErr);
       }
 
       // Fallback mock session if backend response wasn't success
