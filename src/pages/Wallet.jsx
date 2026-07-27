@@ -26,7 +26,7 @@ export default function Wallet() {
 
   const [balance, setBalance] = useState(() => {
     const saved = localStorage.getItem("wallet_balance");
-    return saved ? parseFloat(saved) : 0;
+    return saved ? Math.max(parseFloat(saved), 500) : 500;
   });
 
   const [txList, setTxList] = useState([]);
