@@ -24,7 +24,10 @@ export default function CallSession() {
 
   // Stats & controls
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [remainingBalance, setRemainingBalance] = useState(null);
+  const [remainingBalance, setRemainingBalance] = useState(() => {
+    const saved = localStorage.getItem("wallet_balance");
+    return saved ? parseFloat(saved) : null;
+  });
   const [showWarning, setShowWarning] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isCameraOff, setIsCameraOff] = useState(false);
@@ -186,7 +189,10 @@ export default function CallSession() {
     // Real-time billing timer tick
     socket.on("timer_tick", (data) => {
       if (data) {
-        if (data.remainingBalance !== undefined) setRemainingBalance(data.remainingBalance);
+        if (data.remainingBalance !== undefined) {
+          setRemainingBalance(data.remainingBalance);
+          localStorage.setItem("wallet_balance", data.remainingBalance.toFixed(2));
+        }
         if (data.elapsedMinutes !== undefined) {
           const computedSecs = data.elapsedMinutes * 60;
           if (Math.abs(computedSecs - elapsedSeconds) > 60) {
@@ -201,8 +207,9 @@ export default function CallSession() {
       setShowWarning(true);
       if (data?.remainingBalance !== undefined) {
         setRemainingBalance(data.remainingBalance);
+        localStorage.setItem("wallet_balance", data.remainingBalance.toFixed(2));
       }
-      setTimeout(() => setShowWarning(false), 8000);
+      setTimeout(() => setShowWarning(false), 15000); // 15s so user can click Recharge
     });
 
     // Peer media state updates
@@ -332,8 +339,9 @@ export default function CallSession() {
         handleEndCall();
       });
 
-      // Join the channel
-      await client.join(appId, channelName, rtcToken, null);
+      // Join the channel — pass null for mock/empty tokens (enables Agora App-ID-only test mode)
+      const resolvedToken = (rtcToken && !String(rtcToken).startsWith("mock_")) ? rtcToken : null;
+      await client.join(appId, channelName, resolvedToken, null);
 
       // Create local tracks and publish
       if (mode === "VIDEO") {
@@ -561,9 +569,19 @@ export default function CallSession() {
           
           {/* Low Balance Warning Banner */}
           {showWarning && (
-            <div className="absolute top-4 left-4 right-4 z-50 bg-yellow-500 text-black px-4 py-3 rounded-2xl flex items-center gap-2 shadow-lg animate-bounce">
-              <AlertTriangle size={20} className="flex-shrink-0" />
-              <p className="text-xs font-bold">Low balance! Call will automatically end in less than 1 minute.</p>
+            <div className="absolute top-4 left-4 right-4 z-50 bg-yellow-500 text-black px-4 py-3 rounded-2xl flex items-center justify-between gap-2 shadow-lg">
+              <div className="flex items-center gap-2 flex-1">
+                <AlertTriangle size={18} className="flex-shrink-0" />
+                <p className="text-xs font-bold leading-tight">
+                  Low balance! {remainingBalance !== null ? `₹${remainingBalance.toFixed(2)} left.` : ""} Kindly recharge to enjoy more.
+                </p>
+              </div>
+              <button
+                onClick={() => navigate("/deposit")}
+                className="flex-shrink-0 bg-black/20 hover:bg-black/30 text-black text-[10px] font-extrabold px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
+              >
+                Recharge
+              </button>
             </div>
           )}
 
@@ -573,6 +591,14 @@ export default function CallSession() {
             <span className="font-mono text-sm tracking-wider">{formatTime(elapsedSeconds)}</span>
             <span className="text-white/40 text-xs">|</span>
             <span className="text-xs font-bold text-orange-400">₹{ratePerMinute}/min</span>
+            {remainingBalance !== null && (
+              <>
+                <span className="text-white/40 text-xs">|</span>
+                <span className={`text-xs font-bold ${remainingBalance < ratePerMinute * 2 ? "text-red-400" : "text-green-400"}`}>
+                  Bal: ₹{remainingBalance.toFixed(0)}
+                </span>
+              </>
+            )}
           </div>
 
           {/* Peer muted indicators overlay */}
