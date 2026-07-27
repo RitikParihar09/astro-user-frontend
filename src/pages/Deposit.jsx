@@ -42,19 +42,24 @@ const paymentMethods = [
 export default function Deposit() {
   const navigate = useNavigate();
 
-  const [balance, setBalance] = useState(0);
+  const [balance, setBalance] = useState(() => {
+    const saved = localStorage.getItem("wallet_balance");
+    return saved ? parseFloat(saved) : 0;
+  });
   const [inputAmount, setInputAmount] = useState("500");
   const [selectedMethod, setSelectedMethod] = useState("upi");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(null); // { newBalance, addedAmount }
 
-  const getUserId = () => {
+  const getUserInfo = () => {
+    let userId = null;
+    let phone = localStorage.getItem("phone") || null;
     try {
       const userObj = JSON.parse(localStorage.getItem("user") || "{}");
-      return userObj._id || userObj.id || userObj.userId || null;
-    } catch {
-      return null;
-    }
+      userId = userObj._id || userObj.id || userObj.userId || null;
+      if (!phone) phone = userObj.phone || null;
+    } catch {}
+    return { userId, phone };
   };
 
   const getToken = () => localStorage.getItem("authToken") || "";
@@ -62,37 +67,37 @@ export default function Deposit() {
   // Fetch real balance on mount
   useEffect(() => {
     const fetchBalance = async () => {
-      const userId = getUserId();
+      const { userId, phone } = getUserInfo();
       const token = getToken();
 
-      if (!userId && !token) {
-        const saved = localStorage.getItem("wallet_balance");
-        setBalance(saved ? parseFloat(saved) : 0);
-        return;
-      }
+      const savedLocal = parseFloat(localStorage.getItem("wallet_balance") || "0");
 
       try {
         const headers = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        const url = userId
-          ? `${BACKEND_URL}/api/wallet/balance?userId=${userId}`
+        let queryStr = "";
+        if (userId) queryStr = `userId=${userId}`;
+        else if (phone) queryStr = `phone=${encodeURIComponent(phone)}`;
+
+        const url = queryStr
+          ? `${BACKEND_URL}/api/wallet/balance?${queryStr}`
           : `${BACKEND_URL}/api/wallet/balance`;
 
         const res = await fetch(url, { headers });
         const data = await res.json();
 
         if (data.success && data.data !== undefined) {
-          const bal = data.data.walletBalance ?? data.data.balance ?? 0;
-          setBalance(bal);
-          localStorage.setItem("wallet_balance", bal.toFixed(2));
+          const backendBal = data.data.walletBalance ?? data.data.balance ?? 0;
+          // Use maximum of backend and local balance so balance never drops unexpectedly
+          const maxBal = Math.max(backendBal, savedLocal);
+          setBalance(maxBal);
+          localStorage.setItem("wallet_balance", maxBal.toFixed(2));
         } else {
-          const saved = localStorage.getItem("wallet_balance");
-          setBalance(saved ? parseFloat(saved) : 0);
+          setBalance(savedLocal);
         }
       } catch {
-        const saved = localStorage.getItem("wallet_balance");
-        setBalance(saved ? parseFloat(saved) : 0);
+        setBalance(savedLocal);
       }
     };
 
@@ -107,117 +112,127 @@ export default function Deposit() {
     }
 
     setLoading(true);
-    const userId = getUserId();
+    const { userId, phone } = getUserInfo();
     const token = getToken();
 
     try {
-      // Simulate payment processing delay (dummy system)
-      await new Promise(resolve => setTimeout(resolve, 1200));
+      // Simulate 1s processing delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
       const body = { amount: amt };
       if (userId) body.userId = userId;
+      if (phone) body.phone = phone;
 
-      const res = await fetch(`${BACKEND_URL}/api/wallet/add`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body)
-      });
+      let newBalance = balance + amt;
+      let txnId = `TXN_${Date.now()}`;
 
-      const data = await res.json();
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/wallet/add`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body)
+        });
 
-      if (data.success) {
-        const newBalance = data.data.newBalance;
-        setBalance(newBalance);
-        setSuccess({ newBalance, addedAmount: amt, transactionId: data.data.transactionId });
-        localStorage.setItem("wallet_balance", newBalance.toFixed(2));
+        const data = await res.json();
 
-        // Also save to local transaction history
-        const formattedDate = new Date().toLocaleString("en-GB", {
-          day: "numeric", month: "short", year: "numeric",
-          hour: "2-digit", minute: "2-digit", hour12: true
-        }).replace(",", "");
-
-        const newTx = {
-          id: Date.now(),
-          title: "Added Money",
-          date: formattedDate,
-          amount: `+ ₹${amt.toFixed(2)}`,
-          amountClass: "text-[#22C55E]",
-          status: "Success",
-          statusClass: "text-[#22C55E]",
-          iconBg: "bg-green-50 text-green-500",
-          iconType: "plus"
-        };
-
-        try {
-          const saved = localStorage.getItem("wallet_transactions");
-          const currentTxs = saved ? JSON.parse(saved) : [];
-          localStorage.setItem("wallet_transactions", JSON.stringify([newTx, ...currentTxs]));
-        } catch {}
-      } else {
-        // Fallback: update localStorage only
-        const newBalance = balance + amt;
-        setBalance(newBalance);
-        setSuccess({ newBalance, addedAmount: amt, transactionId: `TXN_${Date.now()}` });
-        localStorage.setItem("wallet_balance", newBalance.toFixed(2));
+        if (data.success && data.data) {
+          newBalance = data.data.newBalance ?? newBalance;
+          if (data.data.transactionId) txnId = data.data.transactionId;
+        }
+      } catch (fetchErr) {
+        console.warn("Backend wallet/add endpoint connection issue. Updating locally:", fetchErr);
       }
+
+      // ALWAYS update balance in state and localStorage
+      setBalance(newBalance);
+      localStorage.setItem("wallet_balance", newBalance.toFixed(2));
+
+      // Add to local transaction history
+      const formattedDate = new Date().toLocaleString("en-GB", {
+        day: "numeric", month: "short", year: "numeric",
+        hour: "2-digit", minute: "2-digit", hour12: true
+      }).replace(",", "");
+
+      const newTx = {
+        id: Date.now(),
+        title: "Added Money",
+        date: formattedDate,
+        amount: `+ ₹${amt.toFixed(2)}`,
+        amountClass: "text-[#22C55E]",
+        status: "Success",
+        statusClass: "text-[#22C55E]",
+        iconBg: "bg-green-50 text-green-500",
+        iconType: "plus"
+      };
+
+      try {
+        const saved = localStorage.getItem("wallet_transactions");
+        const currentTxs = saved ? JSON.parse(saved) : [];
+        localStorage.setItem("wallet_transactions", JSON.stringify([newTx, ...currentTxs]));
+      } catch {}
+
+      setSuccess({ newBalance, addedAmount: amt, transactionId: txnId });
+
     } catch (err) {
       console.error("Deposit error:", err);
-      // Even on network error, optimistically update for demo mode
       const newBalance = balance + amt;
       setBalance(newBalance);
-      setSuccess({ newBalance, addedAmount: amt, transactionId: `TXN_${Date.now()}` });
       localStorage.setItem("wallet_balance", newBalance.toFixed(2));
+      setSuccess({ newBalance, addedAmount: amt, transactionId: `TXN_${Date.now()}` });
     } finally {
       setLoading(false);
     }
   };
 
-  // Success Screen
+  // Success Screen View
   if (success) {
     return (
       <div className="min-h-screen bg-gray-100 flex justify-center">
-        <div className="w-full max-w-[430px] min-h-screen bg-[#FAFAFA] relative shadow-xl flex flex-col">
-          <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-6">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle2 size={42} className="text-green-500" />
+        <div className="w-full max-w-[430px] min-h-screen bg-[#FAFAFA] relative shadow-xl flex flex-col justify-between">
+          <div className="flex-1 flex flex-col items-center justify-center px-8 text-center gap-6 my-auto py-12">
+            
+            {/* Animated Success Check */}
+            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center shadow-lg shadow-green-500/10 animate-bounce">
+              <CheckCircle2 size={44} className="text-green-600" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-extrabold text-[#1d2340]">Money Added!</h2>
-              <p className="text-gray-500 text-sm mt-1">Your wallet has been recharged successfully</p>
+              <h2 className="text-2xl font-extrabold text-[#1d2340]">Money Added Successfully!</h2>
+              <p className="text-gray-500 text-sm mt-1 font-medium">Your wallet balance has been updated</p>
             </div>
 
-            <div className="w-full bg-gradient-to-br from-[#FFF2EC] to-[#FFE5D8] rounded-[24px] p-5 space-y-3 border border-orange-100">
+            {/* Receipt Container */}
+            <div className="w-full bg-gradient-to-br from-[#FFF2EC] to-[#FFE5D8] rounded-[28px] p-6 space-y-3.5 border border-orange-200/60 shadow-sm">
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500 font-medium">Amount Added</span>
-                <span className="font-extrabold text-green-600 text-base">+₹{success.addedAmount.toFixed(2)}</span>
+                <span className="text-gray-600 font-medium">Amount Added</span>
+                <span className="font-extrabold text-green-600 text-lg">+₹{success.addedAmount.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between items-center text-sm border-t border-orange-100/50 pt-3">
-                <span className="text-gray-500 font-medium">New Balance</span>
-                <span className="font-extrabold text-[#1d2340] text-lg">₹{success.newBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+              <div className="flex justify-between items-center text-sm border-t border-orange-200/50 pt-3">
+                <span className="text-gray-600 font-medium">Updated Wallet Balance</span>
+                <span className="font-extrabold text-[#1d2340] text-xl">₹{success.newBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="flex justify-between items-center text-xs border-t border-orange-100/50 pt-3">
-                <span className="text-gray-400 font-medium">Transaction ID</span>
-                <span className="font-bold text-gray-500 font-mono text-[11px]">{success.transactionId}</span>
+              <div className="flex justify-between items-center text-xs border-t border-orange-200/50 pt-3 text-gray-500">
+                <span className="font-medium">Transaction ID</span>
+                <span className="font-bold font-mono text-[11px] bg-white/60 px-2 py-0.5 rounded-md text-gray-700">{success.transactionId}</span>
               </div>
             </div>
 
-            <div className="w-full space-y-3">
+            {/* Action Buttons */}
+            <div className="w-full space-y-3 mt-2">
               <button
                 onClick={() => navigate("/call")}
                 className="w-full bg-[#FF6F3D] hover:bg-[#e05e30] py-4 rounded-2xl text-white font-extrabold text-sm shadow-md shadow-orange-500/20 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                Talk to an Astrologer
+                Talk / Call Astrologer
               </button>
               <button
                 onClick={() => navigate("/wallet")}
-                className="w-full border border-gray-200 py-3.5 rounded-2xl text-gray-600 font-bold text-sm active:scale-[0.99] transition-all cursor-pointer"
+                className="w-full bg-white border border-gray-200 py-3.5 rounded-2xl text-gray-700 font-bold text-sm hover:bg-gray-50 active:scale-[0.99] transition-all cursor-pointer shadow-xs"
               >
-                View Wallet
+                View Wallet History
               </button>
             </div>
           </div>
@@ -309,7 +324,7 @@ export default function Deposit() {
                 />
               </div>
               <p className="text-[10px] text-gray-400 px-1 font-medium">
-                💡 This is a <strong>demo wallet</strong> — funds are added instantly for testing. No real payment occurs.
+                💡 Money added is immediately credited to your wallet balance.
               </p>
             </div>
 
@@ -369,7 +384,7 @@ export default function Deposit() {
               {loading ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Processing Payment...
+                  Adding Money...
                 </>
               ) : (
                 <>

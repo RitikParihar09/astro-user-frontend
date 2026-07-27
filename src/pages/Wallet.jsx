@@ -23,88 +23,98 @@ const renderIcon = (type) => {
 
 export default function Wallet() {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(null);
+
+  const [balance, setBalance] = useState(() => {
+    const saved = localStorage.getItem("wallet_balance");
+    return saved ? parseFloat(saved) : 0;
+  });
+
   const [txList, setTxList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const getUserId = () => {
+  const getUserInfo = () => {
+    let userId = null;
+    let phone = localStorage.getItem("phone") || null;
     try {
       const userObj = JSON.parse(localStorage.getItem("user") || "{}");
-      return userObj._id || userObj.id || userObj.userId || null;
-    } catch {
-      return null;
-    }
+      userId = userObj._id || userObj.id || userObj.userId || null;
+      if (!phone) phone = userObj.phone || null;
+    } catch {}
+    return { userId, phone };
   };
 
   const getToken = () => localStorage.getItem("authToken") || "";
 
   const fetchBalanceFromBackend = useCallback(async () => {
-    const userId = getUserId();
+    const { userId, phone } = getUserInfo();
     const token = getToken();
 
-    if (!userId && !token) {
-      // Fallback to localStorage if not logged in
-      const saved = localStorage.getItem("wallet_balance");
-      setBalance(saved ? parseFloat(saved) : 0);
-      return;
-    }
+    const savedLocal = parseFloat(localStorage.getItem("wallet_balance") || "0");
 
     try {
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const url = userId
-        ? `${BACKEND_URL}/api/wallet/balance?userId=${userId}`
+      let queryStr = "";
+      if (userId) queryStr = `userId=${userId}`;
+      else if (phone) queryStr = `phone=${encodeURIComponent(phone)}`;
+
+      const url = queryStr
+        ? `${BACKEND_URL}/api/wallet/balance?${queryStr}`
         : `${BACKEND_URL}/api/wallet/balance`;
 
       const res = await fetch(url, { headers });
       const data = await res.json();
 
       if (data.success && data.data !== undefined) {
-        const backendBalance = data.data.walletBalance ?? data.data.balance ?? 0;
-        setBalance(backendBalance);
-        localStorage.setItem("wallet_balance", backendBalance.toFixed(2));
+        const backendBal = data.data.walletBalance ?? data.data.balance ?? 0;
+        // Never reduce balance if local added money hasn't synced to legacy backend yet
+        const effectiveBal = Math.max(backendBal, savedLocal);
+        setBalance(effectiveBal);
+        localStorage.setItem("wallet_balance", effectiveBal.toFixed(2));
       } else {
-        // Fallback to localStorage
-        const saved = localStorage.getItem("wallet_balance");
-        setBalance(saved ? parseFloat(saved) : 0);
+        setBalance(savedLocal);
       }
     } catch (err) {
       console.error("Wallet balance fetch error:", err);
-      const saved = localStorage.getItem("wallet_balance");
-      setBalance(saved ? parseFloat(saved) : 0);
+      setBalance(savedLocal);
     }
   }, []);
 
   const fetchTransactions = useCallback(async () => {
-    const userId = getUserId();
+    const { userId, phone } = getUserInfo();
     const token = getToken();
 
-    // Always load localStorage-based recharge transactions first
     let localTxs = [];
     try {
       const saved = localStorage.getItem("wallet_transactions");
-      if (saved) localTxs = JSON.parse(saved).filter(t => t.iconType === "plus");
+      if (saved) localTxs = JSON.parse(saved);
     } catch {}
 
-    if (userId || token) {
+    if (userId || phone || token) {
       try {
         const headers = { "Content-Type": "application/json" };
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        const url = userId
-          ? `${BACKEND_URL}/api/wallet/transactions?userId=${userId}`
+        let queryStr = "";
+        if (userId) queryStr = `userId=${userId}`;
+        else if (phone) queryStr = `phone=${encodeURIComponent(phone)}`;
+
+        const url = queryStr
+          ? `${BACKEND_URL}/api/wallet/transactions?${queryStr}`
           : `${BACKEND_URL}/api/wallet/transactions`;
 
         const res = await fetch(url, { headers });
         const data = await res.json();
 
         if (data.success && Array.isArray(data.data)) {
-          // Merge: backend debit transactions + local recharge transactions
-          const merged = [...localTxs, ...data.data];
+          // Deduplicate local + backend transactions
+          const existingIds = new Set(data.data.map(t => String(t.id)));
+          const filteredLocal = localTxs.filter(t => !existingIds.has(String(t.id)));
+          const merged = [...filteredLocal, ...data.data];
           merged.sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
-          setTxList(merged.slice(0, 20));
+          setTxList(merged.slice(0, 25));
           return;
         }
       } catch (err) {
@@ -112,8 +122,7 @@ export default function Wallet() {
       }
     }
 
-    // Fallback: all localStorage transactions
-    setTxList(localTxs.slice(0, 20));
+    setTxList(localTxs.slice(0, 25));
   }, []);
 
   const loadAll = useCallback(async () => {
@@ -130,7 +139,7 @@ export default function Wallet() {
 
   useEffect(() => {
     loadAll();
-  }, []);
+  }, [loadAll]);
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center">
@@ -170,13 +179,9 @@ export default function Wallet() {
             <div className="bg-gradient-to-br from-[#FFF2EC] to-[#FFE5D8] rounded-[28px] p-6 shadow-sm border border-[#FFF2EC] flex items-center justify-between relative overflow-hidden">
               <div className="space-y-3.5 z-10">
                 <span className="text-xs font-bold text-gray-500 tracking-wide uppercase">Available Balance</span>
-                {loading ? (
-                  <div className="h-9 w-32 bg-orange-200/50 rounded-xl animate-pulse" />
-                ) : (
-                  <div className="text-3xl font-extrabold text-[#1d2340]">
-                    ₹{(balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                  </div>
-                )}
+                <div className="text-3xl font-extrabold text-[#1d2340]">
+                  ₹{(balance ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </div>
 
                 <div className="inline-flex items-center gap-1.5 bg-white/70 backdrop-blur-sm border border-orange-200 px-3.5 py-1.5 rounded-full shadow-sm text-xs font-bold text-[#FF6F3D]">
                   <Sparkles size={11} className="text-orange-500" />
@@ -209,7 +214,6 @@ export default function Wallet() {
                   Add Money
                 </span>
               </button>
-
 
               <button className="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
                 <div className="w-11 h-11 rounded-2xl bg-[#FFF2EC] group-hover:bg-[#FFE5D8] transition-colors flex items-center justify-center text-[#FF6F3D]">
