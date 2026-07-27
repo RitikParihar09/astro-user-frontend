@@ -161,7 +161,7 @@ function AstrologerCard({ item }) {
       // Step 2: Proceed with call request
       const token = localStorage.getItem("authToken");
       const userObj = JSON.parse(localStorage.getItem("user") || "{}");
-      const userId = userObj._id || userObj.id || "";
+      const userId = userObj._id || userObj.id || userObj.userId || localStorage.getItem("phone") || "user_client";
       const astroId = data.id || data._id;
 
       let response;
@@ -178,7 +178,8 @@ function AstrologerCard({ item }) {
           body: JSON.stringify({
             userId: userId,
             astrologerId: astroId,
-            callType: type
+            callType: type,
+            walletBalance: currentBalance
           })
         });
 
