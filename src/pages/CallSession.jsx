@@ -138,18 +138,6 @@ export default function CallSession() {
       return;
     }
 
-    let mockAcceptTimeout;
-    const isMockMode = sessionId.startsWith("mock_") || location.state?.isMock;
-
-    if (isMockMode) {
-      console.log("Mock Call Session initialized locally.");
-      mockAcceptTimeout = setTimeout(() => {
-        console.log("Simulating mock call acceptance...");
-        setSessionStatus("ACTIVE");
-        setChannelName("mock_channel");
-      }, 2500);
-    }
-
     const token = localStorage.getItem("authToken");
     socketRef.current = io("https://kalpjoytish-backend.onrender.com", {
       transports: ["polling", "websocket"],
@@ -162,28 +150,30 @@ export default function CallSession() {
       console.log("Connected to Calling Socket room:", socket.id);
       socket.emit("register_user", { userId });
       socket.emit("join_call_room", { sessionId });
+      socket.emit("join", `call_${sessionId}`);
+      socket.emit("join", sessionId);
     });
 
-    // Handle acceptance from astrologer
+    // Handle acceptance from astrologer — user only joins call when accepted!
     socket.on("call_accepted", async (data) => {
       console.log("📞 Call accepted by astrologer:", data);
-      const appID = data.agora?.appId || data.appId || data.appID;
-      const channel = data.channelName || data.agora?.channelName || channelName;
-      const rtcToken = data.agora?.token || data.token || data.rtcToken;
-      const callMode = String(data.session?.callType || data.callType || callType).toUpperCase();
+      const appID = data?.agora?.appId || data?.appId || data?.appID;
+      const channel = data?.channelName || data?.agora?.channelName || channelName || `call_${sessionId}`;
+      const rtcToken = data?.agora?.token || data?.token || data?.rtcToken;
+      const callMode = String(data?.session?.callType || data?.callType || callType).toUpperCase();
 
       setCallType(callMode);
       setChannelName(channel);
+      setSessionStatus("ACTIVE");
 
       // Initialize Agora on acceptance
       await initAgora(appID, channel, rtcToken, callMode);
     });
 
-    // If accepted immediately or status updates on mount
-    socket.on("session_active", () => {
-      if (sessionStatus !== "ACTIVE") {
-        setSessionStatus("ACTIVE");
-      }
+    // Handle session_active event
+    socket.on("session_active", (data) => {
+      console.log("⚡ session_active event received:", data);
+      setSessionStatus("ACTIVE");
     });
 
     // Real-time billing timer tick
@@ -274,9 +264,6 @@ export default function CallSession() {
       cleanupCall();
       if (socketRef.current) {
         socketRef.current.disconnect();
-      }
-      if (mockAcceptTimeout) {
-        clearTimeout(mockAcceptTimeout);
       }
     };
   }, [sessionId, isLoggedIn]);
