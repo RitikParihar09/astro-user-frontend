@@ -170,7 +170,7 @@ function AstrologerCard({ item }) {
       // Dual-channel dispatch: HTTP API + Direct Socket.io emission for 100% notification guarantee
       try {
         const { io } = await import("socket.io-client");
-        const directSocket = io("https://kalpjoytish-backend.onrender.com", { transports: ["polling", "websocket"] });
+        const directSocket = io(BACKEND_URL, { transports: ["polling", "websocket"] });
         directSocket.on("connect", () => {
           directSocket.emit("request_call", {
             userId: userId,
@@ -200,27 +200,26 @@ function AstrologerCard({ item }) {
 
         if (!response.ok) {
           console.warn("Backend call request returned non-OK status:", response.status);
-        } else {
-          resData = await response.json();
+          alert("Failed to connect to Astrologer. The astrologer might be offline. Please try again later.");
+          setLoadingCall(null);
+          return;
+        }
+        
+        resData = await response.json();
+        
+        if (!resData || !resData.success) {
+           alert("Failed to initiate call. Please try again.");
+           setLoadingCall(null);
+           return;
         }
       } catch (fetchErr) {
         console.error("Failed to connect to backend for call request HTTP fetch:", fetchErr);
+        alert("Network error. Please check your connection and try again.");
+        setLoadingCall(null);
+        return;
       }
 
-      // Fallback mock session if backend response wasn't success
-      if (isMock || !resData || !resData.success) {
-        resData = {
-          success: true,
-          data: {
-            _id: "session_" + Date.now(),
-            sessionId: "session_" + Date.now(),
-            channelName: "demo_channel",
-            isMock: true
-          }
-        };
-      }
-
-      // Always navigate to active call session screen
+      // Navigate to active call session screen only on success
       navigate("/call-session", {
         state: {
           astrologer: {
@@ -228,26 +227,15 @@ function AstrologerCard({ item }) {
             priceRaw: priceCleaned
           },
           callType: type,
-          sessionId: resData.data?._id || resData.data?.sessionId || ("session_" + Date.now()),
-          channelName: resData.data?.channelName || "demo_channel",
-          isMock: isMock || resData.data?.isMock
+          sessionId: resData.data?._id || resData.data?.sessionId,
+          channelName: resData.data?.channelName || `call_${resData.data?._id}`,
+          isMock: false
         }
       });
     } catch (error) {
       console.error("Start Call Error:", error);
-      // Fallback direct navigate on error so user is never stuck
-      navigate("/call-session", {
-        state: {
-          astrologer: {
-            ...data,
-            priceRaw: priceCleaned
-          },
-          callType: type,
-          sessionId: "session_" + Date.now(),
-          channelName: "demo_channel",
-          isMock: true
-        }
-      });
+      alert("An unexpected error occurred. Please try again.");
+      setLoadingCall(null);
     } finally {
       setLoadingCall(null);
     }
