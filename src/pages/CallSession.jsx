@@ -361,7 +361,11 @@ export default function CallSession() {
     } catch (err) {
       isInitRef.current = false;
       console.error("Agora configuration failed:", err);
-      alert("Could not start audio/video streaming: " + err.message);
+      if (err.message && err.message.includes("PERMISSION_DENIED")) {
+        alert("Please allow Camera and Microphone permissions in your browser settings to connect the call.");
+      } else {
+        alert("Could not start audio/video streaming: " + err.message);
+      }
       handleEndCall();
     }
   };
