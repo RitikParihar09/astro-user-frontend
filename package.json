@@ -14,7 +14,6 @@
     "@tailwindcss/vite": "^4.3.2",
     "agora-rtc-sdk-ng": "^4.24.6",
     "country-state-city": "^3.2.1",
-    "firebase": "^12.16.0",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
