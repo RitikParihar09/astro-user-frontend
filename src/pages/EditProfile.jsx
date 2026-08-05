@@ -142,7 +142,7 @@ export default function EditProfile() {
 
       // Since the user has already verified OTP or logged in, a user document 
       // already exists in the backend DB. We update it via PUT /api/user/profile.
-      const response = await fetch("https://kalpjoytish-backend.onrender.com/api/user/profile", {
+      const response = await fetch(`${import.meta.env.VITE_SOCKET_URL || "https://kalpjoytish-backend.onrender.com"}/api/user/profile`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
