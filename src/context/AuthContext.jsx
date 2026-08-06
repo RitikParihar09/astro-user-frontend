@@ -32,7 +32,7 @@ export function AuthProvider({ children }) {
     if (userData) {
       localStorage.setItem("user", JSON.stringify(userData));
       setUser(userData);
-      const name = userData.name || `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || userData.phone || "";
+      const name = userData.name || `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || "";
       if (name) {
         localStorage.setItem("userName", name);
         setUserName(name);

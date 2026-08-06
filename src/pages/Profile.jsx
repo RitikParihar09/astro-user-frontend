@@ -39,7 +39,7 @@ function Profile() {
             localStorage.setItem("user", JSON.stringify(u));
             if (u.uniqueId) setUniqueId(u.uniqueId);
             if (u.email) setEmail(u.email);
-            const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || u.phone || "Astro User";
+            const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || "Astro User";
             updateUserName(fullName);
           }
         })
