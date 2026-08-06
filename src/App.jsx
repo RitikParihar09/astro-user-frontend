@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import LoginRequiredModal from "./component/LoginRequiredModal";
 import Home from "./pages/Home";
@@ -38,11 +38,24 @@ function ProtectedRoute({ children, featureName }) {
 }
 
 function InitialRedirect() {
-  const { isLoggedIn } = useAuth();
-  return <Navigate to={isLoggedIn ? "/home" : "/login"} replace />;
+  const { isLoggedIn, isProfileCompleted } = useAuth();
+  if (isLoggedIn) {
+    return <Navigate to={isProfileCompleted ? "/home" : "/editprofile?mode=onboarding"} replace />;
+  }
+  return <Navigate to="/login" replace />;
 }
 
 function AppContent() {
+  const { isLoggedIn, isProfileCompleted } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isLoggedIn && !isProfileCompleted && location.pathname !== "/editprofile" && location.pathname !== "/login" && location.pathname !== "/otp") {
+      navigate("/editprofile?mode=onboarding", { replace: true, state: { from: location.pathname } });
+    }
+  }, [isLoggedIn, isProfileCompleted, location.pathname, navigate]);
+
   return (
     <>
       <Routes>

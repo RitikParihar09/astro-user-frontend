@@ -7,7 +7,7 @@ import { useAuth } from "../context/AuthContext";
 function Otp() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { loginUser, updateUserName } = useAuth();
+  const { loginUser, updateUserName, saveUser } = useAuth();
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timer, setTimer] = useState(30);
@@ -125,10 +125,7 @@ function Otp() {
         if (data.data && data.data.token) {
           localStorage.setItem("authToken", data.data.token);
           if (data.data.user) {
-            const u = data.data.user;
-            localStorage.setItem("user", JSON.stringify(u));
-            const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || u.phone || "Astro User";
-            updateUserName(fullName);
+            saveUser(data.data.user);
           }
         } else {
           // Fallback: If it only verified, call login API next, ignoring database constraint errors in frontend
@@ -157,10 +154,7 @@ function Otp() {
                   localStorage.setItem("authToken", loginData.data.token);
                 }
                 if (loginData.data.user) {
-                  const u = loginData.data.user;
-                  localStorage.setItem("user", JSON.stringify(u));
-                  const fullName = u.name || `${u.firstname || ""} ${u.lastname || ""}`.trim() || u.phone || "Astro User";
-                  updateUserName(fullName);
+                  saveUser(loginData.data.user);
                 }
               }
             }

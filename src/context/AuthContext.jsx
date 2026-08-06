@@ -6,6 +6,14 @@ export function AuthProvider({ children }) {
   const [isLoggedIn, setIsLoggedIn] = useState(
     () => localStorage.getItem("isLoggedIn") === "true"
   );
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem("user");
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [showModal, setShowModal] = useState(false);
   const [pendingFeature, setPendingFeature] = useState(null);
   const [pendingRedirect, setPendingRedirect] = useState(null);
@@ -20,10 +28,32 @@ export function AuthProvider({ children }) {
     setShowModal(false);
   };
 
+  const saveUser = (userData) => {
+    if (userData) {
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
+      const name = userData.name || `${userData.firstname || ""} ${userData.lastname || ""}`.trim() || userData.phone || "";
+      if (name) {
+        localStorage.setItem("userName", name);
+        setUserName(name);
+      }
+    } else {
+      localStorage.removeItem("user");
+      setUser(null);
+      localStorage.removeItem("userName");
+      setUserName("");
+    }
+  };
+
   const logoutUser = () => {
     localStorage.removeItem("isLoggedIn");
     localStorage.removeItem("userName");
+    localStorage.removeItem("user");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("phone");
+    localStorage.removeItem("dob");
     setUserName("");
+    setUser(null);
     setJustLoggedOut(true);
     setIsLoggedIn(false);
     setShowModal(false);
@@ -49,12 +79,17 @@ export function AuthProvider({ children }) {
     setPendingRedirect(null);
   };
 
+  const isProfileCompleted = user?.isProfileCompleted || false;
+
   return (
     <AuthContext.Provider
       value={{
         isLoggedIn,
         loginUser,
         logoutUser,
+        user,
+        saveUser,
+        isProfileCompleted,
         showModal,
         setShowModal,
         pendingFeature,

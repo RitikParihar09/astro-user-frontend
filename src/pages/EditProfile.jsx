@@ -71,7 +71,7 @@ const StepIndicator = ({ activeStep }) => {
 export default function EditProfile() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { updateUserName, userName } = useAuth();
+  const { updateUserName, userName, saveUser } = useAuth();
 
   // Check if we are in onboarding mode
   const isOnboarding = location.search.includes("mode=onboarding");
@@ -253,7 +253,7 @@ export default function EditProfile() {
         
         if (data.data) {
           const updatedUser = data.data.user || data.data;
-          localStorage.setItem("user", JSON.stringify(updatedUser));
+          saveUser(updatedUser);
         }
         
         alert("Profile completed successfully!");
@@ -332,7 +332,7 @@ export default function EditProfile() {
         updateUserName(formData.name);
         if (data.data) {
           const updatedUser = data.data.user || data.data;
-          localStorage.setItem("user", JSON.stringify(updatedUser));
+          saveUser(updatedUser);
         }
         alert("Profile saved successfully!");
         navigate("/profile");
