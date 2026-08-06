@@ -38,7 +38,8 @@ function ProtectedRoute({ children, featureName }) {
 }
 
 function InitialRedirect() {
-  return <Navigate to="/login" replace />;
+  const { isLoggedIn } = useAuth();
+  return <Navigate to={isLoggedIn ? "/home" : "/login"} replace />;
 }
 
 function AppContent() {

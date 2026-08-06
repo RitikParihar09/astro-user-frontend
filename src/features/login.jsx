@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Phone } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -7,7 +7,13 @@ import logo from "../assets/logo.png";
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logoutUser } = useAuth();
+  const { isLoggedIn, logoutUser } = useAuth();
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      navigate("/home", { replace: true });
+    }
+  }, [isLoggedIn, navigate]);
   const [mobile, setMobile] = useState("");
 
   const handleSkip = () => {

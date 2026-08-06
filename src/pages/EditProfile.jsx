@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ChevronLeft,
   ChevronDown,
@@ -76,9 +76,11 @@ export default function EditProfile() {
   // Check if we are in onboarding mode
   const isOnboarding = location.search.includes("mode=onboarding");
 
-  // Onboarding Step State (Removed steps logic, collecting everything on single page)
+  // Single consolidated Form State
   const [formData, setFormData] = useState({
     name: (userName && userName !== "Ravi Sharma") ? userName : "",
+    email: "",
+    phone: "",
     gender: "",
     dob: "",
     tob: "",
@@ -89,9 +91,78 @@ export default function EditProfile() {
     address: "",
   });
 
-  // Standard Single-Page State
-  const [singleName, setSingleName] = useState(userName === "Ravi Sharma" ? "" : userName);
   const [isUpdating, setIsUpdating] = useState(false);
+
+  // Fetch current user details on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      const token = localStorage.getItem("authToken");
+      if (!token) return;
+
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SOCKET_URL || "https://kalpjoytish-backend.onrender.com"}/api/user/profile`, {
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+          const u = data.data.user || data.data;
+          
+          let displayDob = "";
+          if (u.dateofbirth) {
+            const dateObj = new Date(u.dateofbirth);
+            if (!isNaN(dateObj.getTime())) {
+              const d = String(dateObj.getDate()).padStart(2, "0");
+              const m = String(dateObj.getMonth() + 1).padStart(2, "0");
+              const y = dateObj.getFullYear();
+              displayDob = `${d} / ${m} / ${y}`;
+            }
+          }
+          
+          setFormData({
+            name: u.name || "",
+            email: u.email || "",
+            phone: u.phone || "",
+            gender: u.gender ? (u.gender.charAt(0).toUpperCase() + u.gender.slice(1)) : "Select Gender",
+            dob: displayDob,
+            tob: u.timeofbirth || "",
+            birthPlace: u.placeofbirth || "",
+            city: u.city || "",
+            state: u.state || "",
+            country: u.country || "",
+            address: u.address || "",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to fetch user profile", err);
+        // Fallback to local storage
+        const savedUserStr = localStorage.getItem("user");
+        if (savedUserStr) {
+          try {
+            const u = JSON.parse(savedUserStr);
+            setFormData({
+              name: u.name || "",
+              email: u.email || "",
+              phone: u.phone || "",
+              gender: u.gender ? (u.gender.charAt(0).toUpperCase() + u.gender.slice(1)) : "Select Gender",
+              dob: u.dob || "",
+              tob: u.timeofbirth || "",
+              birthPlace: u.placeofbirth || "",
+              city: u.city || "",
+              state: u.state || "",
+              country: u.country || "",
+              address: u.address || "",
+            });
+          } catch (e) {
+            console.error("Parsing local user failed", e);
+          }
+        }
+      }
+    };
+    
+    fetchProfile();
+  }, []);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -138,10 +209,8 @@ export default function EditProfile() {
     setIsUpdating(true);
     try {
       const token = localStorage.getItem("authToken");
-      const phoneVal = localStorage.getItem("phone");
+      const phoneVal = localStorage.getItem("phone") || formData.phone;
 
-      // Since the user has already verified OTP or logged in, a user document 
-      // already exists in the backend DB. We update it via PUT /api/user/profile.
       const response = await fetch(`${import.meta.env.VITE_SOCKET_URL || "https://kalpjoytish-backend.onrender.com"}/api/user/profile`, {
         method: "PUT",
         headers: {
@@ -159,7 +228,7 @@ export default function EditProfile() {
             }
           }
           const cleanPhone = phoneVal ? phoneVal.replace(/\D/g, "") : Math.random().toString(36).substring(7);
-          const userEmail = `${cleanPhone}@kalpjoytish.com`;
+          const userEmail = formData.email || `${cleanPhone}@kalpjoytish.com`;
 
           return JSON.stringify({
             name: formData.name,
@@ -200,14 +269,82 @@ export default function EditProfile() {
     }
   };
 
-  const handleSingleSave = () => {
-    if (!singleName.trim()) {
-      alert("Please enter your name");
+  const handleSingleSave = async () => {
+    if (!formData.name.trim()) {
+      alert("Please enter full name");
       return;
     }
-    updateUserName(singleName.trim());
-    alert("Profile saved successfully!");
-    navigate("/profile");
+    if (!formData.email.trim()) {
+      alert("Please enter email");
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      alert("Please enter a valid email address");
+      return;
+    }
+    if (!formData.gender || formData.gender === "Select Gender") {
+      alert("Please select gender");
+      return;
+    }
+    if (!formData.dob) {
+      alert("Please enter date of birth");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const token = localStorage.getItem("authToken");
+      
+      let formattedDob = "";
+      if (formData.dob) {
+        const parts = formData.dob.split(" / ");
+        if (parts.length === 3) {
+          formattedDob = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        } else {
+          formattedDob = formData.dob;
+        }
+      }
+
+      const response = await fetch(`${import.meta.env.VITE_SOCKET_URL || "https://kalpjoytish-backend.onrender.com"}/api/user/profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          gender: formData.gender,
+          dateofbirth: formattedDob,
+          timeofbirth: formData.tob,
+          placeofbirth: formData.birthPlace,
+          city: formData.city,
+          state: formData.state,
+          country: formData.country,
+          address: formData.address,
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        updateUserName(formData.name);
+        if (data.data) {
+          const updatedUser = data.data.user || data.data;
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+        }
+        alert("Profile saved successfully!");
+        navigate("/profile");
+      } else {
+        alert(data.message || `Failed to save profile: ${response.statusText}`);
+      }
+    } catch (err) {
+      console.error("Profile Save Error:", err);
+      alert(`Profile update failed: ${err.message}`);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   // Parse "HH:MM AM/PM"
@@ -560,8 +697,8 @@ export default function EditProfile() {
               <User className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="text"
-                value={singleName}
-                onChange={(e) => setSingleName(e.target.value)}
+                value={formData.name}
+                onChange={(e) => handleChange("name", e.target.value)}
                 placeholder="Full Name"
                 className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
@@ -572,6 +709,8 @@ export default function EditProfile() {
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="email"
+                value={formData.email}
+                onChange={(e) => handleChange("email", e.target.value)}
                 placeholder="Email Address"
                 className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
@@ -582,18 +721,58 @@ export default function EditProfile() {
               <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="text"
+                value={formData.phone}
+                disabled
                 placeholder="Mobile Number"
-                className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
+                className="w-full pl-12 pr-4 py-4 border rounded-xl bg-gray-50 text-gray-500 focus:outline-none"
               />
             </div>
 
             {/* DOB */}
-            <div className="relative">
-              <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
+            <div className="relative flex items-center">
+              <Calendar className="absolute left-4 text-orange-500 w-5 h-5" />
               <input
-                type="date"
-                className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
+                type="text"
+                value={formData.dob}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  const clean = value.replace(/\D/g, "");
+                  let formatted = "";
+                  if (clean.length > 0) {
+                    formatted += clean.substring(0, 2);
+                  }
+                  if (clean.length > 2) {
+                    formatted += " / " + clean.substring(2, 4);
+                  }
+                  if (clean.length > 4) {
+                    let yearVal = clean.substring(4, 8);
+                    if (yearVal.length === 4) {
+                      const currentYear = new Date().getFullYear();
+                      if (parseInt(yearVal, 10) > currentYear) {
+                        yearVal = currentYear.toString();
+                      }
+                    }
+                    formatted += " / " + yearVal;
+                  }
+                  handleChange("dob", formatted);
+                }}
+                placeholder="DD / MM / YYYY"
+                maxLength={14}
+                className="w-full pl-12 pr-12 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
+              <div className="absolute right-4 w-6 h-6 flex items-center justify-center cursor-pointer">
+                <input
+                  type="date"
+                  max={`${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) return;
+                    const [year, month, day] = val.split("-");
+                    handleChange("dob", `${day} / ${month} / ${year}`);
+                  }}
+                />
+              </div>
             </div>
 
             {/* Time */}
@@ -601,6 +780,8 @@ export default function EditProfile() {
               <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="time"
+                value={formData.tob}
+                onChange={(e) => handleChange("tob", e.target.value)}
                 className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
             </div>
@@ -610,6 +791,8 @@ export default function EditProfile() {
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="text"
+                value={formData.city}
+                onChange={(e) => handleChange("city", e.target.value)}
                 placeholder="City"
                 className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
@@ -620,6 +803,8 @@ export default function EditProfile() {
               <Map className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="text"
+                value={formData.state}
+                onChange={(e) => handleChange("state", e.target.value)}
                 placeholder="State"
                 className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
@@ -630,6 +815,8 @@ export default function EditProfile() {
               <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
               <input
                 type="text"
+                value={formData.country}
+                onChange={(e) => handleChange("country", e.target.value)}
                 placeholder="Country"
                 className="w-full pl-12 pr-4 py-4 border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
               />
@@ -637,7 +824,11 @@ export default function EditProfile() {
 
             {/* Gender */}
             <div className="relative">
-              <select className="w-full px-4 py-4 border rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white">
+              <select
+                value={formData.gender}
+                onChange={(e) => handleChange("gender", e.target.value)}
+                className="w-full px-4 py-4 border rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+              >
                 <option>Select Gender</option>
                 <option>Male</option>
                 <option>Female</option>
@@ -651,6 +842,8 @@ export default function EditProfile() {
               <MapPin className="absolute left-4 top-6 text-orange-500 w-5 h-5" />
               <textarea
                 rows="3"
+                value={formData.address}
+                onChange={(e) => handleChange("address", e.target.value)}
                 placeholder="Address"
                 className="w-full pl-12 pr-4 py-4 border rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
               ></textarea>
@@ -659,9 +852,12 @@ export default function EditProfile() {
             {/* Save Button */}
             <button
               onClick={handleSingleSave}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-xl text-lg font-semibold shadow-lg transition cursor-pointer"
+              disabled={isUpdating}
+              className={`w-full bg-orange-500 hover:bg-orange-600 text-white py-4 rounded-xl text-lg font-semibold shadow-lg transition cursor-pointer ${
+                isUpdating ? "opacity-60 cursor-not-allowed" : ""
+              }`}
             >
-              Save Changes
+              {isUpdating ? "Saving..." : "Save Changes"}
             </button>
 
           </div>
