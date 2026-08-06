@@ -172,37 +172,91 @@ export default function EditProfile() {
     navigate(-1);
   };
 
+  const validateProfileForm = (data, isEmailRequired = false) => {
+    const nameTrimmed = (data.name || "").trim();
+    if (!nameTrimmed) {
+      return "Please enter full name";
+    }
+    if (!/^[a-zA-Z\s]{3,}$/.test(nameTrimmed)) {
+      return "Name must contain only letters and be at least 3 characters long";
+    }
+
+    if (isEmailRequired || data.email) {
+      const emailTrimmed = (data.email || "").trim();
+      if (!emailTrimmed) {
+        return "Please enter email";
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailTrimmed)) {
+        return "Please enter a valid email address";
+      }
+    }
+
+    if (!data.gender || data.gender === "Select Gender") {
+      return "Please select gender";
+    }
+
+    // DOB Validation
+    if (!data.dob) {
+      return "Please enter date of birth";
+    }
+    const dobParts = data.dob.split(" / ");
+    if (dobParts.length === 3) {
+      const day = parseInt(dobParts[0], 10);
+      const month = parseInt(dobParts[1], 10) - 1;
+      const year = parseInt(dobParts[2], 10);
+      const dateObj = new Date(year, month, day);
+      const today = new Date();
+      
+      if (
+        isNaN(dateObj.getTime()) ||
+        dateObj.getFullYear() !== year ||
+        dateObj.getMonth() !== month ||
+        dateObj.getDate() !== day
+      ) {
+        return "Please enter a valid Date of Birth";
+      }
+      if (dateObj > today) {
+        return "Date of Birth cannot be in the future";
+      }
+      if (year < 1900) {
+        return "Please enter a realistic birth year (1900 or later)";
+      }
+    } else {
+      return "Please enter Date of Birth in DD / MM / YYYY format";
+    }
+
+    if (!data.tob) {
+      return "Please enter time of birth";
+    }
+
+    // Location Text Fields
+    const textFields = {
+      "city": data.city,
+      "state": data.state,
+      "country": data.country
+    };
+    if (isOnboarding) {
+      textFields["place of birth"] = data.birthPlace;
+    }
+
+    for (const [fieldName, val] of Object.entries(textFields)) {
+      const trimmed = (val || "").trim();
+      if (!trimmed) {
+        return `Please enter your ${fieldName}`;
+      }
+      if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
+        return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} must contain only letters (no numbers or special characters)`;
+      }
+    }
+
+    return null; // Valid
+  };
+
   const handleContinue = async () => {
-    if (!formData.name.trim()) {
-      alert("Please enter full name");
-      return;
-    }
-    if (!formData.gender || formData.gender === "Select Gender") {
-      alert("Please select gender");
-      return;
-    }
-    if (!formData.dob) {
-      alert("Please enter date of birth");
-      return;
-    }
-    if (!formData.tob) {
-      alert("Please enter time of birth");
-      return;
-    }
-    if (!formData.birthPlace.trim()) {
-      alert("Please enter your place of birth");
-      return;
-    }
-    if (!formData.city.trim()) {
-      alert("Please enter city");
-      return;
-    }
-    if (!formData.state.trim()) {
-      alert("Please enter state");
-      return;
-    }
-    if (!formData.country.trim()) {
-      alert("Please enter country");
+    const validationError = validateProfileForm(formData, false);
+    if (validationError) {
+      alert(validationError);
       return;
     }
     
@@ -270,25 +324,9 @@ export default function EditProfile() {
   };
 
   const handleSingleSave = async () => {
-    if (!formData.name.trim()) {
-      alert("Please enter full name");
-      return;
-    }
-    if (!formData.email.trim()) {
-      alert("Please enter email");
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email.trim())) {
-      alert("Please enter a valid email address");
-      return;
-    }
-    if (!formData.gender || formData.gender === "Select Gender") {
-      alert("Please select gender");
-      return;
-    }
-    if (!formData.dob) {
-      alert("Please enter date of birth");
+    const validationError = validateProfileForm(formData, true);
+    if (validationError) {
+      alert(validationError);
       return;
     }
 
